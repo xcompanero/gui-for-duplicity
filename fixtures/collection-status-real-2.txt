@@ -1,0 +1,212 @@
+Last full backup date: Fri Oct  2 08:33:39 2026
+No encryption keys configured.
+Skipping passphrase request for action collection-status
+Collection Status
+-----------------
+Connecting with backend: BackendWrapper
+Archive directory: /home/aidan/.cache/duplicity/4929406ae019cbc69303eb854b69de49
+
+Found 2 secondary backup chain(s).
+Secondary chain 1 of 2:
+-------------------------
+Chain start time: Thu Apr  2 09:05:52 2026
+Chain end time: Thu Jul  2 11:09:18 2026
+Number of contained backup sets: 78
+Total number of contained volumes: 1270
+ Type of backup set:                            Time:   Number of volumes:
+                Full         Thu Apr  2 09:05:52 2026              1149
+         Incremental         Fri Apr  3 09:14:07 2026                 1
+         Incremental         Sat Apr  4 09:36:31 2026                 1
+         Incremental         Sun Apr  5 09:01:21 2026                 1
+         Incremental         Mon Apr  6 09:01:23 2026                 6
+         Incremental         Tue Apr  7 08:31:52 2026                 1
+         Incremental         Wed Apr  8 07:19:13 2026                 1
+         Incremental         Sun Apr 12 21:49:40 2026                 2
+         Incremental         Mon Apr 13 09:26:25 2026                 1
+         Incremental         Tue Apr 14 08:13:37 2026                 4
+         Incremental         Wed Apr 15 09:02:48 2026                 1
+         Incremental         Thu Apr 16 08:32:55 2026                 2
+         Incremental         Fri Apr 17 08:37:43 2026                 2
+         Incremental         Sat Apr 18 09:09:36 2026                 1
+         Incremental         Sun Apr 19 08:17:13 2026                 1
+         Incremental         Mon Apr 20 09:01:44 2026                 1
+         Incremental         Tue Apr 21 08:35:13 2026                 1
+         Incremental         Wed Apr 22 08:47:25 2026                 1
+         Incremental         Thu Apr 23 09:08:47 2026                 1
+         Incremental         Fri Apr 24 07:02:08 2026                 1
+         Incremental         Sat Apr 25 08:41:34 2026                 1
+         Incremental         Sun Apr 26 08:51:20 2026                 1
+         Incremental         Mon Apr 27 08:34:56 2026                 1
+         Incremental         Tue Apr 28 08:51:45 2026                 1
+         Incremental         Wed Apr 29 08:23:10 2026                 1
+         Incremental         Thu Apr 30 07:27:21 2026                 1
+         Incremental         Wed May  6 09:04:16 2026                 1
+         Incremental         Thu May  7 08:23:26 2026                 1
+         Incremental         Fri May  8 08:57:37 2026                 1
+         Incremental         Sat May  9 08:52:55 2026                 1
+         Incremental         Sun May 10 09:24:53 2026                 1
+         Incremental         Mon May 11 08:29:51 2026                 2
+         Incremental         Tue May 12 09:00:17 2026                 1
+         Incremental         Wed May 13 08:34:17 2026                 1
+         Incremental         Thu May 14 08:40:12 2026                 1
+         Incremental         Mon May 18 09:15:44 2026                 3
+         Incremental         Tue May 19 08:52:25 2026                 7
+         Incremental         Tue May 19 10:59:40 2026                11
+         Incremental         Wed May 20 09:03:23 2026                 9
+         Incremental         Thu May 21 08:03:22 2026                 1
+         Incremental         Fri May 22 08:14:36 2026                 1
+         Incremental         Sat May 23 09:22:32 2026                 1
+         Incremental         Sun May 24 08:38:38 2026                 1
+         Incremental         Mon May 25 08:58:41 2026                 1
+         Incremental         Tue May 26 08:29:37 2026                 1
+         Incremental         Wed May 27 08:38:46 2026                 1
+         Incremental         Thu May 28 08:11:15 2026                 1
+         Incremental         Fri May 29 08:52:53 2026                 1
+         Incremental         Sat May 30 07:48:42 2026                 1
+         Incremental         Sun May 31 08:35:54 2026                 1
+         Incremental         Mon Jun  1 08:37:09 2026                 1
+         Incremental         Tue Jun  2 08:39:12 2026                 1
+         Incremental         Wed Jun  3 07:58:41 2026                 1
+         Incremental         Thu Jun  4 09:06:21 2026                 1
+         Incremental         Fri Jun  5 08:57:23 2026                 4
+         Incremental         Sat Jun  6 08:07:21 2026                 1
+         Incremental         Sun Jun  7 08:36:43 2026                 1
+         Incremental         Mon Jun  8 08:12:15 2026                 1
+         Incremental         Tue Jun  9 09:07:22 2026                 2
+         Incremental         Wed Jun 10 08:03:33 2026                 1
+         Incremental         Thu Jun 11 09:56:26 2026                 1
+         Incremental         Fri Jun 12 08:47:11 2026                 1
+         Incremental         Sat Jun 13 08:44:59 2026                 1
+         Incremental         Sun Jun 14 09:25:50 2026                 1
+         Incremental         Mon Jun 15 08:16:12 2026                 1
+         Incremental         Tue Jun 16 06:25:36 2026                 1
+         Incremental         Wed Jun 17 07:50:45 2026                 1
+         Incremental         Thu Jun 18 09:11:11 2026                 1
+         Incremental         Fri Jun 19 08:39:59 2026                 1
+         Incremental         Sat Jun 20 08:46:00 2026                 1
+         Incremental         Sun Jun 21 08:34:42 2026                 1
+         Incremental         Mon Jun 22 08:09:07 2026                 1
+         Incremental         Tue Jun 23 08:59:19 2026                 1
+         Incremental         Wed Jun 24 08:47:43 2026                 1
+         Incremental         Mon Jun 29 09:46:21 2026                 1
+         Incremental         Tue Jun 30 09:12:21 2026                 1
+         Incremental         Wed Jul  1 08:16:34 2026                 3
+         Incremental         Thu Jul  2 11:09:18 2026                 1
+-------------------------
+
+Secondary chain 2 of 2:
+-------------------------
+Chain start time: Fri Jul  3 08:16:02 2026
+Chain end time: Thu Oct  1 07:43:11 2026
+Number of contained backup sets: 79
+Total number of contained volumes: 1258
+ Type of backup set:                            Time:   Number of volumes:
+                Full         Fri Jul  3 08:16:02 2026              1152
+         Incremental         Sat Jul  4 08:49:26 2026                 5
+         Incremental         Sun Jul  5 09:06:00 2026                 1
+         Incremental         Mon Jul  6 08:32:13 2026                 1
+         Incremental         Tue Jul  7 07:34:52 2026                 1
+         Incremental         Wed Jul  8 07:34:01 2026                 1
+         Incremental         Thu Jul  9 09:49:07 2026                 1
+         Incremental         Fri Jul 10 08:27:58 2026                 1
+         Incremental         Sat Jul 11 08:14:02 2026                 1
+         Incremental         Sun Jul 12 08:51:30 2026                 1
+         Incremental         Mon Jul 13 08:26:53 2026                 3
+         Incremental         Tue Jul 14 09:08:50 2026                 1
+         Incremental         Wed Jul 15 09:28:30 2026                 1
+         Incremental         Thu Jul 16 08:45:35 2026                 1
+         Incremental         Fri Jul 17 08:07:00 2026                 1
+         Incremental         Sat Jul 18 08:56:17 2026                 1
+         Incremental         Sun Jul 19 08:57:34 2026                 1
+         Incremental         Mon Jul 20 07:57:49 2026                 1
+         Incremental         Tue Jul 21 08:58:26 2026                 1
+         Incremental         Wed Jul 22 09:08:52 2026                 1
+         Incremental         Thu Jul 23 08:35:33 2026                 1
+         Incremental         Fri Jul 24 07:10:59 2026                 1
+         Incremental         Sat Jul 25 08:07:03 2026                 1
+         Incremental         Sun Jul 26 09:26:00 2026                 1
+         Incremental         Mon Jul 27 08:29:45 2026                 1
+         Incremental         Tue Jul 28 04:21:14 2026                 4
+         Incremental         Wed Jul 29 09:01:43 2026                 1
+         Incremental         Thu Jul 30 08:24:01 2026                 1
+         Incremental         Sun Aug  2 20:15:31 2026                 1
+         Incremental         Mon Aug  3 07:14:51 2026                 3
+         Incremental         Wed Aug 12 08:50:42 2026                 1
+         Incremental         Thu Aug 13 09:14:20 2026                 1
+         Incremental         Fri Aug 14 09:51:27 2026                 1
+         Incremental         Sat Aug 15 07:50:56 2026                 1
+         Incremental         Sun Aug 16 09:07:30 2026                 1
+         Incremental         Mon Aug 17 08:49:53 2026                 1
+         Incremental         Tue Aug 18 08:59:40 2026                 2
+         Incremental         Wed Aug 19 08:47:21 2026                 1
+         Incremental         Thu Aug 20 08:05:25 2026                 1
+         Incremental         Fri Aug 21 08:27:19 2026                 1
+         Incremental         Sat Aug 22 09:41:54 2026                 1
+         Incremental         Sun Aug 23 08:48:31 2026                 1
+         Incremental         Mon Aug 24 10:04:29 2026                 1
+         Incremental         Tue Aug 25 08:51:50 2026                 1
+         Incremental         Wed Aug 26 08:18:20 2026                 1
+         Incremental         Thu Aug 27 09:03:26 2026                 1
+         Incremental         Fri Aug 28 08:05:47 2026                 1
+         Incremental         Sat Aug 29 09:44:15 2026                 1
+         Incremental         Sun Aug 30 09:21:25 2026                 1
+         Incremental         Mon Aug 31 08:33:25 2026                 8
+         Incremental         Tue Sep  1 09:49:55 2026                 1
+         Incremental         Wed Sep  2 08:10:34 2026                 1
+         Incremental         Thu Sep  3 08:30:51 2026                 1
+         Incremental         Fri Sep  4 09:13:35 2026                 1
+         Incremental         Sat Sep  5 09:22:42 2026                 1
+         Incremental         Sun Sep  6 10:12:31 2026                 1
+         Incremental         Mon Sep  7 08:57:43 2026                 1
+         Incremental         Tue Sep  8 08:44:18 2026                 1
+         Incremental         Wed Sep  9 08:40:23 2026                 1
+         Incremental         Thu Sep 10 08:46:11 2026                 1
+         Incremental         Fri Sep 11 08:31:33 2026                 1
+         Incremental         Sat Sep 12 08:48:33 2026                 1
+         Incremental         Sun Sep 13 09:15:28 2026                 3
+         Incremental         Mon Sep 14 08:42:55 2026                 1
+         Incremental         Tue Sep 15 07:52:00 2026                 1
+         Incremental         Wed Sep 16 08:28:15 2026                 1
+         Incremental         Thu Sep 17 08:49:55 2026                 1
+         Incremental         Sun Sep 20 21:19:55 2026                 1
+         Incremental         Mon Sep 21 08:20:42 2026                 1
+         Incremental         Tue Sep 22 08:24:46 2026                 3
+         Incremental         Wed Sep 23 08:23:22 2026                 1
+         Incremental         Thu Sep 24 07:30:29 2026                 1
+         Incremental         Fri Sep 25 08:57:05 2026                 1
+         Incremental         Sat Sep 26 08:29:09 2026                 1
+         Incremental         Sun Sep 27 09:00:53 2026                 1
+         Incremental         Mon Sep 28 08:26:26 2026                 3
+         Incremental         Tue Sep 29 08:43:30 2026                 1
+         Incremental         Wed Sep 30 08:16:29 2026                 1
+         Incremental         Thu Oct  1 07:43:11 2026                 4
+-------------------------
+
+
+Found primary backup chain with matching signature chain:
+-------------------------
+Chain start time: Fri Oct  2 08:33:39 2026
+Chain end time: Wed Oct 28 19:44:19 2026
+Number of contained backup sets: 18
+Total number of contained volumes: 1199
+ Type of backup set:                            Time:   Number of volumes:
+                Full         Fri Oct  2 08:33:39 2026              1170
+         Incremental         Sat Oct  3 08:48:00 2026                 1
+         Incremental         Sun Oct  4 09:11:29 2026                 8
+         Incremental         Mon Oct  5 08:37:25 2026                 1
+         Incremental         Tue Oct  6 09:19:03 2026                 1
+         Incremental         Wed Oct  7 08:30:38 2026                 1
+         Incremental         Thu Oct  8 08:36:17 2026                 1
+         Incremental         Sun Oct 11 21:51:07 2026                 1
+         Incremental         Mon Oct 12 07:55:28 2026                 1
+         Incremental         Tue Oct 13 09:14:28 2026                 5
+         Incremental         Wed Oct 14 09:22:11 2026                 1
+         Incremental         Thu Oct 15 07:22:03 2026                 1
+         Incremental         Sat Oct 24 20:57:38 2026                 2
+         Incremental         Sun Oct 25 08:14:45 2026                 1
+         Incremental         Mon Oct 26 08:12:51 2026                 1
+         Incremental         Tue Oct 27 08:56:34 2026                 1
+         Incremental         Wed Oct 28 07:51:17 2026                 1
+         Incremental         Wed Oct 28 19:44:19 2026                 1
+-------------------------
+No orphaned or incomplete backup sets found.

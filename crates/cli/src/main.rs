@@ -63,14 +63,25 @@ fn cmd_status(args: Vec<String>) -> Result<()> {
     }
     for (i, chain) in report.chains.iter().enumerate() {
         println!(
-            "Chain {}: full at {}, {} incremental(s), ends at {}",
+            "Chain {} ({}): {} set(s), {} volumes",
             i + 1,
-            chain.full.time,
-            chain.incrementals.len(),
-            chain.end_time()
+            chain.kind,
+            chain.num_backup_sets.map_or(chain.sets.len(), |n| n as usize),
+            chain
+                .num_volumes
+                .map_or_else(|| "unknown".to_string(), |v| v.to_string())
         );
-        for inc in &chain.incrementals {
-            println!("    Inc: {inc}");
+        println!(
+            "    from {} to {}",
+            chain
+                .start_time
+                .map_or("?".into(), |t| t.to_string()),
+            chain
+                .end_time()
+                .map_or("?".into(), |t| t.to_string())
+        );
+        for set in &chain.sets {
+            println!("    {set}");
         }
         println!();
     }
