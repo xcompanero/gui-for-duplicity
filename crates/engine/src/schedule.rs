@@ -69,7 +69,7 @@ pub fn unit_stem(profile_name: &str) -> String {
     format!("gfd-{stem}")
 }
 
-fn user_units_dir() -> Result<PathBuf> {
+pub(crate) fn user_units_dir() -> Result<PathBuf> {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .context("no HOME set")?;
@@ -173,10 +173,14 @@ fn systemctl(args: &[&str]) -> Result<String> {
     Ok(text)
 }
 
+pub(crate) fn daemon_reload() -> Result<()> {
+    systemctl(&["daemon-reload"]).map(|_| ())
+}
+
 /// Reload unit files, then enable and start the timer for a profile.
 pub fn enable(profile_name: &str) -> Result<()> {
     let stem = unit_stem(profile_name);
-    systemctl(&["daemon-reload"])?;
+    daemon_reload()?;
     systemctl(&["enable", "--now", &format!("{stem}.timer")])?;
     Ok(())
 }

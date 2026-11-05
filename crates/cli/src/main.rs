@@ -31,6 +31,7 @@ fn main() -> Result<()> {
         "restore" => cmd_restore(rest),
         "backup" => cmd_backup(rest),
         "schedule" => cmd_schedule(rest),
+        "delete" => cmd_delete(rest),
         "seed-cache" => cmd_seed_cache(rest),
         _ => {
             bail!("usage: engine-cli status <target-url> [--passphrase <s>] [--backend-password <s>]\n       engine-cli files <target-url> [--time <t>] [--live] [--dup-verbosity info]\n       engine-cli verify <target-url> <local-path> [--time <t>] [--no-compare-data] [--live]\n       engine-cli restore <target-url> <dest-dir> [--file <path>] [--time <t>] [--live]\n       (secrets may be given via ENGINE_PASSPHRASE / ENGINE_BACKEND_PASSWORD;\n        --live streams duplicity's messages as they happen)\n       engine-cli version");
@@ -145,6 +146,16 @@ impl Opts {
         }
         Ok((&self.positional[0], &self.positional[1]))
     }
+}
+
+/// Delete a profile, including its scheduled-backup artifacts.
+fn cmd_delete(args: Vec<String>) -> Result<()> {
+    if args.len() != 1 {
+        bail!("usage: engine-cli delete <profile-name>");
+    }
+    engine::profile::Profile::delete_with_cleanup(&args[0])?;
+    println!("Profile '{}' deleted (schedule artifacts removed).", args[0]);
+    Ok(())
 }
 
 /// Manage a profile's systemd user timer.

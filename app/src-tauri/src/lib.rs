@@ -107,8 +107,7 @@ fn save_profile(profile: Profile) -> Result<String, String> {
 
 #[tauri::command]
 fn delete_profile(name: String) -> Result<(), String> {
-    let path = Profile::default_profiles_dir().join(format!("{name}.toml"));
-    std::fs::remove_file(&path).map_err(|e| format!("deleting {}: {e}", path.display()))
+    Profile::delete_with_cleanup(&name).map_err(err_msg)
 }
 
 #[tauri::command]

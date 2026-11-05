@@ -163,6 +163,28 @@ impl Profile {
         args.push(self.target.clone());
         args
     }
+
+    /// Delete a profile: its TOML and any scheduled-backup artifacts
+    /// (systemd timer/service are disabled and removed). Best effort on the
+    /// schedule cleanup — a broken unit must not prevent profile deletion.
+    pub fn delete_with_cleanup(name: &str) -> Result<()> {
+        // Schedule artifacts first: the timer may reference a profile that is
+        // about to vanish.
+        if let Err(e) = crate::schedule::disable(name) {
+            // A missing/never-enabled/broken timer is fine to ignore here;
+            // file removal below still cleans up.
+            eprintln!("note: disabling timer for {name}: {e:#}");
+        }
+        if let Ok(dir) = crate::schedule::user_units_dir() {
+            let stem = crate::schedule::unit_stem(name);
+            let _ = std::fs::remove_file(dir.join(format!("{stem}.service")));
+            let _ = std::fs::remove_file(dir.join(format!("{stem}.timer")));
+            let _ = crate::schedule::daemon_reload();
+        }
+        let path = Self::default_profiles_dir().join(format!("{name}.toml"));
+        std::fs::remove_file(&path)
+            .with_context(|| format!("deleting profile file {}", path.display()))
+    }
 }
 
 #[cfg(test)]
