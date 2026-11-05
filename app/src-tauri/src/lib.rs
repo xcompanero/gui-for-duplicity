@@ -136,21 +136,65 @@ fn forget_passphrase(target: String) -> Result<(), String> {
     engine::secrets::forget_passphrase(&target).map_err(err_msg)
 }
 
-#[tauri::command]
-fn browse_files(
+#[derive(Serialize, Clone)]
+struct ListingStale {
     target: String,
-    passphrase: Option<String>,
-) -> Result<BrowseResult, String> {
-    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
-    engine::listing_cache::get_or_fetch(&target, None, &creds, None)
-        .map(|(listing, from_cache)| BrowseResult { listing, from_cache })
-        .map_err(err_msg)
+    stale: bool,
 }
 
 #[derive(Serialize)]
 struct BrowseResult {
     listing: engine::files::FileListing,
     from_cache: bool,
+    /// True when a background freshness check is running.
+    freshness_check_running: bool,
+}
+
+#[tauri::command]
+fn browse_files(
+    app: AppHandle,
+    target: String,
+    passphrase: Option<String>,
+    force_refresh: Option<bool>,
+) -> Result<BrowseResult, String> {
+    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
+
+    // Instant path: serve the cached index without any network activity,
+    // then check freshness in the background.
+    if !force_refresh.unwrap_or(false) {
+        if let Some((listing, cached_end)) = engine::listing_cache::get_cached(&target) {
+            let creds_bg = creds.clone();
+            let app_bg = app.clone();
+            let target_bg = target.clone();
+            std::thread::spawn(move || {
+                let fresh = engine::listing_cache::current_chain_end(&target_bg, &creds_bg).ok();
+                let stale = match (fresh, cached_end) {
+                    (Some(f), Some(c)) => f != c,
+                    (Some(_), None) => true, // cached listing predates chain tracking
+                    (None, _) => false,      // status failed; say nothing rather than cry wolf
+                };
+                let _ = app_bg.emit(
+                    "listing-stale",
+                    ListingStale { target: target_bg, stale },
+                );
+            });
+            return Ok(BrowseResult {
+                listing,
+                from_cache: true,
+                freshness_check_running: true,
+            });
+        }
+    }
+
+    // Slow path: real duplicity run (can take minutes to hours on big
+    // targets), then cache the parse.
+    engine::listing_cache::get_or_fetch(&target, None, &creds, None)
+        .map(|(listing, from_cache)| BrowseResult {
+            listing,
+            from_cache,
+            freshness_check_running: false,
+        })
+        .map_err(err_msg)
 }
 
 /// Start a backup job for a profile. Returns a job id immediately; progress

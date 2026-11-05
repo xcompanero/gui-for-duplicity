@@ -82,6 +82,10 @@
         <input id="file-filter" placeholder="Filter paths… (e.g. Documents/photos)" />
         <span id="file-count" class="subtitle"></span>
       </div>
+      <div id="stale-banner" class="banner" hidden>
+        <span>A newer backup exists on this target — the index below is from the previous one.</span>
+        <button id="btn-refresh-index">Refresh index</button>
+      </div>
       <div id="file-list"></div>
     </section>
 

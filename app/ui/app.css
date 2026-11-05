@@ -169,6 +169,17 @@ button:disabled { opacity: 0.5; cursor: default; }
 .linklike:hover { text-decoration: underline; }
 
 /* Log view */
+.banner {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #fdf3d7;
+  border: 1px solid #f0c36d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
 #log {
   background: #232629;
   color: #cfd6da;

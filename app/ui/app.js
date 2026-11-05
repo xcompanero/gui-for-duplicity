@@ -257,6 +257,14 @@ function renderFileBrowser() {
   const box = $("#file-list");
   box.innerHTML = "";
 
+  if (shown.length > MAX_ROWS) {
+    const note = document.createElement("div");
+    note.className = "frow";
+    note.innerHTML = `<span class="ficon">…</span><span>Showing the first ${MAX_ROWS} of ${shown.length} matches — refine the filter to narrow further.</span>`;
+    box.appendChild(note);
+    shown = shown.slice(0, MAX_ROWS);
+  }
+
   if (prefix) {
     const up = document.createElement("div");
     up.className = "frow dir";
@@ -291,16 +299,20 @@ async function openBrowserForChain(target) {
   browseTarget = target;
   browseDirPrefix = null;
   $("#file-filter").value = "";
+  $("#stale-banner").hidden = true;
   $("#files-meta").textContent = `${target} — at: /`;
   $("#file-count").textContent = "";
   $("#file-list").innerHTML =
-    '<div class="frow"><span>Loading — building the file index. First time per target can take many minutes; afterwards it is cached…</span></div>';
+    '<div class="frow"><span>Loading cached file index…</span></div>';
   showView("files");
   try {
-    const res = await invoke("browse_files", { target, passphrase: null });
+    const res = await invoke("browse_files", { target, passphrase: null, forceRefresh: false });
     browseListing = res.listing;
     $("#files-meta").textContent =
       `${target} — at: / ${res.from_cache ? "(from cache)" : "(freshly parsed)"}`;
+    if (res.freshness_check_running) {
+      $("#files-meta").textContent += " — checking for newer backups in background…";
+    }
     renderFileBrowser();
   } catch (e) {
     $("#file-list").innerHTML = "";
@@ -308,7 +320,39 @@ async function openBrowserForChain(target) {
   }
 }
 
-$("#file-filter").addEventListener("input", renderFileBrowser);
+// Background freshness check result: offer a refresh, never block.
+// (Listener registered in the boot block below.)
+let onListingStale = (ev) => {
+  const { target, stale } = ev.payload;
+  if (target !== browseTarget) return;
+  $("#stale-banner").hidden = !stale;
+};
+
+$("#btn-refresh-index").onclick = async () => {
+  const target = browseTarget;
+  if (!target) return;
+  $("#file-list").innerHTML =
+    '<div class="frow"><span>Refreshing the index — duplicity is re-parsing its signatures. This can take many minutes on large targets; the old index stays visible until done…</span></div>';
+  try {
+    const res = await invoke("browse_files", { target, passphrase: null, forceRefresh: true });
+    browseListing = res.listing;
+    $("#stale-banner").hidden = true;
+    $("#files-meta").textContent = `${target} — at: / (refreshed)`;
+    renderFileBrowser();
+  } catch (e) {
+    $("#file-count").textContent = String(e);
+  }
+};
+
+// Debounced filter: re-render at most every 150 ms while typing, and render
+// at most MAX_ROWS rows — filtering 60k entries on every keystroke would
+// otherwise make the whole page feel frozen.
+let filterTimer = null;
+const MAX_ROWS = 500;
+$("#file-filter").addEventListener("input", () => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(renderFileBrowser, 150);
+});
 
 // ---------- backup ----------
 $("#btn-backup").onclick = async () => {
@@ -342,6 +386,7 @@ async function runBackup(name, forceNewChain) {
 
 // ---------- boot ----------
 (async () => {
+  await listen("listing-stale", onListingStale);
   await listen("job-log", (ev) => {
     const { job_id: id, line } = ev.payload;
     if (id !== activeJobId) return;

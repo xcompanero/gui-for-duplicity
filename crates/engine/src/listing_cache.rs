@@ -53,14 +53,25 @@ fn cache_path(target: &str, time: Option<&str>) -> PathBuf {
 }
 
 /// The latest chain end time at the target — the invalidation key.
-/// A cheap `collection-status` (manifests only) provides it.
-fn current_chain_end(target: &str, creds: &Credentials<'_>) -> Result<Option<DateTime<Local>>> {
+/// A cheap `collection-status` (manifests only) provides it. NOTE: on slow
+/// remote backends this can still take a while — it must never be allowed
+/// to block serving a cached listing (see `get_cached`).
+pub fn current_chain_end(target: &str, creds: &Credentials<'_>) -> Result<Option<DateTime<Local>>> {
     let report = runner::collection_status(target, creds, None)?;
     Ok(report
         .chains
         .iter()
         .filter_map(|c| c.end_time())
         .max())
+}
+
+/// Read the cached listing for `target` (default time) without any network
+/// activity. Returns the listing and the chain-end state it was cached for.
+pub fn get_cached(target: &str) -> Option<(FileListing, Option<DateTime<Local>>)> {
+    let path = cache_path(target, None);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let cached: CachedListing = serde_json::from_str(&text).ok()?;
+    Some((cached.listing, cached.chain_end_time))
 }
 
 /// Store an externally-parsed listing for `target` (fetching the current
