@@ -57,9 +57,15 @@ function fillForm(p) {
   f.retention.value = p.retention || "";
   f.extra_options.value = (p.extra_options || []).join(" ");
   f.encrypt.checked = p.encrypt !== false;
+  f.read_only.checked = p.read_only === true;
+  f.original_root.value = p.original_root || "";
+  f.read_only.onchange = () => { $("#btn-backup").hidden = f.read_only.checked; };
   $("#profile-heading").textContent = `Profile: ${p.name || "(new)"}`;
   $("#save-msg").textContent = "";
   $("#btn-delete").disabled = !p.name;
+  // Restore-only profiles must never offer the backup button.
+  $("#btn-backup").hidden = f.read_only.checked;
+  $("#btn-show-status").hidden = false;
 }
 
 function blankProfile() {
@@ -72,6 +78,8 @@ function blankProfile() {
     gpg_options: [],
     retention: "",
     encrypt: true,
+    read_only: false,
+    original_root: null,
   };
   fillForm(currentProfile);
   showView("profile");
@@ -90,6 +98,8 @@ function readForm() {
     gpg_options: [],
     retention: f.retention.value.trim(),
     encrypt: f.encrypt.checked,
+    read_only: f.read_only.checked,
+    original_root: f.original_root.value.trim() || null,
   };
 }
 
@@ -377,6 +387,21 @@ async function openRestoreBar(path) {
   $("#restore-note").textContent = "";
   const bar = $("#restore-bar");
   bar.hidden = false;
+  // "To original location" is offered when the profile declares the root of
+  // the filesystem the archive was taken from.
+  const root = currentProfile?.original_root;
+  const origBtn = $("#btn-orig-dest");
+  if (root) {
+    const parent = parentOf(path);
+    const origDir = root === "/" ? `/${parent}` : `${root.replace(/\/$/, "")}/${parent}`;
+    origBtn.hidden = false;
+    origBtn.onclick = () => {
+      $("#restore-dest").value = origDir;
+      $("#restore-note").textContent = `Original location: ${origDir}/${path.split("/").pop()}`;
+    };
+  } else {
+    origBtn.hidden = true;
+  }
   const destInput = $("#restore-dest");
   if (!destInput.value) {
     try {
@@ -503,7 +528,7 @@ async function runBackup(name, forceNewChain) {
       openBtn.style.marginLeft = "10px";
       openBtn.onclick = async () => {
         try {
-          await window.__TAURI__.opener.openPath(lastRestoreDest);
+          await invoke("open_path", { path: lastRestoreDest });
         } catch (e) {
           console.error(e);
         }

@@ -213,6 +213,14 @@ fn start_backup(
     let profile = Profile::load_default(&name).map_err(err_msg)?;
     let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
 
+    // Restore-only profiles never back up.
+    if profile.read_only {
+        return Err(format!(
+            "'{}' is a restore-only profile (frozen archive). Backups from it are disabled.",
+            profile.name
+        ));
+    }
+
     // Encryption changes are only safe at the start of a new chain.
     if let Some(last) = profile.last_backup_encrypt {
         if last != profile.encrypt && !force_new_chain.unwrap_or(false) {
@@ -229,8 +237,7 @@ fn start_backup(
     let force_full = force_new_chain.unwrap_or(false);
     let args = profile.backup_args(force_full);
     let profile_name = profile.name.clone();
-    let now_encrypted = profile.encrypt;
-    // 'static credentials (KWallet lookup / leaked owned string) move freely
+    let now_encrypted = profile.encrypt;    // 'static credentials (KWallet lookup / leaked owned string) move freely
     // into the job thread.
     let creds = resolve_credentials(&profile.target, passphrase.as_deref()).map_err(err_msg)?;
 
@@ -247,6 +254,7 @@ fn start_backup(
     }
 
     std::thread::spawn(move || {
+        let started = std::time::Instant::now();
         let app_for_log = app.clone();
         let listener = move |line: &str| {
             let _ = app_for_log.emit(
@@ -272,7 +280,10 @@ fn start_backup(
                         ok: run.success(),
                         exit_code: run.exit_status.code(),
                         message: if run.success() {
-                            Some("Backup finished successfully.".to_string())
+                            Some(format!(
+                                "Backup finished successfully. (took {})",
+                                format_elapsed(started.elapsed())
+                            ))
                         } else {
                             Some("Backup FAILED — see log above.".to_string())
                         },
@@ -298,6 +309,15 @@ fn start_backup(
     Ok(job_id)
 }
 
+fn format_elapsed(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    if s >= 60 {
+        format!("{}m {:02}s", s / 60, s % 60)
+    } else {
+        format!("{s}s")
+    }
+}
+
 /// Start a restore job: `path` (or the whole snapshot when None) from
 /// `target` at optional `time`, restored *into* `dest_dir` (the item keeps
 /// its own name). Progress streams as job-log events.
@@ -315,6 +335,7 @@ fn start_restore(
     let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
 
     std::thread::spawn(move || {
+        let started = std::time::Instant::now();
         let app_log = app.clone();
         let listener = move |line: &str| {
             let _ = app_log.emit(
@@ -332,7 +353,11 @@ fn start_restore(
         ) {
             Ok(outcome) => {
                 let message = if outcome.success {
-                    Some(format!("Restored to {}", outcome.final_dest))
+                    Some(format!(
+                        "Restored to {} (took {})",
+                        outcome.final_dest,
+                        format_elapsed(started.elapsed())
+                    ))
                 } else if outcome.refused_existing {
                     Some(format!(
                         "Restored nothing: {}. Duplicity never overwrites existing files.",
@@ -366,6 +391,15 @@ fn start_restore(
 }
 
 #[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    std::process::Command::new("xdg-open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("launching file manager for {path}: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 fn home_dir() -> String {
     std::env::var("HOME").unwrap_or_default()
 }
@@ -374,7 +408,6 @@ fn home_dir() -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             duplicity_version,
@@ -390,6 +423,7 @@ pub fn run() {
             start_backup,
             start_restore,
             home_dir,
+            open_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

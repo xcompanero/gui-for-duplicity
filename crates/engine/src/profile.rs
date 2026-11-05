@@ -47,6 +47,16 @@ pub struct Profile {
     /// requires starting a new chain, not an incremental).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_backup_encrypt: Option<bool>,
+    /// Restore-only profile: the target is a frozen archive (e.g. a
+    /// pre-reinstall history). Backups are refused from this profile.
+    #[serde(default)]
+    pub read_only: bool,
+    /// Root of the original filesystem this archive was taken from, used to
+    /// offer "restore to original location". For Déjà-Dup-era archives whose
+    /// paths start with `home/…`, this is `/`. The final original path is
+    /// `<original_root>/<relative path>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_root: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -168,6 +178,8 @@ mod tests {
             retention: "6M".into(),
             encrypt: true,
             last_backup_encrypt: None,
+            read_only: false,
+            original_root: None,
         };
         let text = toml::to_string_pretty(&profile).unwrap();
         let back: Profile = toml::from_str(&text).unwrap();
@@ -190,6 +202,8 @@ mod tests {
             retention: String::new(),
             encrypt: false,
             last_backup_encrypt: None,
+            read_only: false,
+            original_root: None,
         };
         let args = profile.backup_args(false);
         assert!(args.contains(&"--no-encryption".to_string()));
@@ -219,6 +233,8 @@ mod tests {
             retention: String::new(),
             encrypt: true,
             last_backup_encrypt: None,
+            read_only: false,
+            original_root: None,
         };
         let args = profile.backup_args(false);
         assert_eq!(&args[0..3], &["--exclude", "**/tmp/**", "backup"]);

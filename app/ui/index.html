@@ -43,6 +43,15 @@
             <input type="checkbox" name="encrypt" id="f-encrypt" />
             Encrypt backups with GPG (recommended)
           </label>
+          <label class="checkline">
+            <input type="checkbox" name="read_only" id="f-readonly" />
+            Restore-only profile (frozen archive — no backups)
+          </label>
+        </div>
+        <div class="row">
+          <label>Original location root (for "restore to original")
+            <input name="original_root" placeholder="e.g. / — paths then map to /home/… (leave empty if unknown)" />
+          </label>
           <label>GPG passphrase (for encrypted targets)
             <input name="passphrase" type="password" placeholder="type to save a new one to KWallet" />
           </label>
@@ -96,6 +105,7 @@
         </div>
         <div class="restore-line">
           <button id="btn-do-restore" class="primary">Restore</button>
+          <button id="btn-orig-dest" hidden>To original location</button>
           <button id="btn-cancel-restore">Cancel</button>
           <span id="restore-note" class="subtitle"></span>
         </div>
