@@ -63,8 +63,12 @@ function fillForm(p) {
   $("#profile-heading").textContent = `Profile: ${p.name || "(new)"}`;
   $("#save-msg").textContent = "";
   $("#btn-delete").disabled = !p.name;
-  // Restore-only profiles must never offer the backup button.
+  // Restore-only profiles must never offer the backup button; verify needs
+  // exactly one source directory to compare against.
   $("#btn-backup").hidden = f.read_only.checked;
+  $("#btn-verify").hidden =
+    f.read_only.checked ||
+    !(f.sources.value.split("\n").map((s) => s.trim()).filter(Boolean).length === 1);
   $("#btn-show-status").hidden = false;
 }
 
@@ -434,6 +438,36 @@ async function openRestoreBar(path) {
 
 $("#btn-cancel-restore").onclick = () => {
   $("#restore-bar").hidden = true;
+};
+
+// ---------- verify ----------
+$("#btn-verify").onclick = async () => {
+  const p = readForm();
+  if (!p.target || p.sources.length !== 1) {
+    return flashError("Verify needs a target URL and exactly one source directory");
+  }
+  const proceed = confirm(
+    `Full verification of:\n  ${p.target}\nagainst source:\n  ${p.sources[0]}\n\n` +
+      "Every file's data in the backup will be read from the target and compared — " +
+      "for large or remote archives this can take hours.\n\nProceed?"
+  );
+  if (!proceed) return;
+
+  restoreJobKind = "verify";
+  try {
+    activeJobId = await invoke("start_verify", {
+      target: p.target,
+      localPath: p.sources[0],
+      time: null,
+      passphrase: null,
+    });
+    $("#log").textContent = "";
+    $("#log-job").textContent = `verify job #${activeJobId} — ${p.target}`;
+    $("#log-status").textContent = "Verifying…";
+    showView("log");
+  } catch (e) {
+    flashError(String(e));
+  }
 };
 
 $("#btn-choose-dest").onclick = async () => {

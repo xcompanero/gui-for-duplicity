@@ -409,6 +409,76 @@ fn open_path(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Start a verify job: full data comparison of `target` (at optional `time`)
+/// against `local_path`. Streams duplicity's messages, then reports the
+/// parsed verdict. This reads the entire backup from the target.
+#[tauri::command]
+fn start_verify(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    target: String,
+    local_path: String,
+    time: Option<String>,
+    passphrase: Option<String>,
+) -> Result<u64, String> {
+    let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
+    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
+
+    std::thread::spawn(move || {
+        let started = std::time::Instant::now();
+        let app_log = app.clone();
+        let listener = move |line: &str| {
+            let _ = app_log.emit(
+                "job-log",
+                JobLogLine { job_id, line: line.to_string() },
+            );
+        };
+        match runner::verify(
+            &target,
+            &local_path,
+            true,
+            time.as_deref(),
+            &creds,
+            Some(&listener),
+        ) {
+            Ok(outcome) => {
+                for line in &outcome.report.difference_lines {
+                    let _ = app.emit(
+                        "job-log",
+                        JobLogLine { job_id, line: format!("  DIFFERENCE: {line}") },
+                    );
+                }
+                let verdict = match outcome.report.is_clean() {
+                    Some(true) => format!(
+                        "VERIFIED — {} file(s) compared, 0 differences (took {})",
+                        outcome.report.files_compared.unwrap_or(0),
+                        format_elapsed(started.elapsed())
+                    ),
+                    Some(false) => format!(
+                        "DIFFERENCES FOUND — {} file(s) compared, {} difference(s); see the list above",
+                        outcome.report.files_compared.unwrap_or(0),
+                        outcome.report.differences.unwrap_or(0)
+                    ),
+                    None => "Verify did not complete — see log above".to_string(),
+                };
+                let ok = outcome.success && outcome.report.is_clean() == Some(true);
+                let _ = app.emit(
+                    "job-done",
+                    JobDone { job_id, ok, exit_code: None, message: Some(verdict) },
+                );
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "job-done",
+                    JobDone { job_id, ok: false, exit_code: None, message: Some(err_msg(e)) },
+                );
+            }
+        }
+    });
+
+    Ok(job_id)
+}
+
 #[tauri::command]
 fn home_dir() -> String {
     std::env::var("HOME").unwrap_or_default()
@@ -432,6 +502,7 @@ pub fn run() {
             forget_passphrase,
             start_backup,
             start_restore,
+            start_verify,
             home_dir,
             open_path,
         ])
