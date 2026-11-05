@@ -38,6 +38,17 @@
             <input name="extra_options" placeholder="--volsize=500 …" />
           </label>
         </div>
+        <div class="row">
+          <label>GPG passphrase (for encrypted targets)
+            <input name="passphrase" type="password" placeholder="leave empty for unencrypted targets" />
+          </label>
+          <label>&nbsp;
+            <div class="pass-actions">
+              <button type="button" id="btn-store-pass">Save passphrase to KWallet</button>
+              <button type="button" id="btn-forget-pass" class="danger">Forget</button>
+            </div>
+          </label>
+        </div>
         <div class="actions">
           <button type="submit" class="primary">Save profile</button>
           <button type="button" id="btn-delete" class="danger">Delete</button>
@@ -54,6 +65,20 @@
       <h2>Backup status <span id="status-target" class="subtitle"></span></h2>
       <p id="status-summary"></p>
       <div id="chains"></div>
+    </section>
+
+    <!-- Snapshot file browser -->
+    <section id="view-files" class="view" hidden>
+      <h2>
+        <button id="btn-files-back" class="linklike">← Status</button>
+        Snapshot files
+        <span id="files-meta" class="subtitle"></span>
+      </h2>
+      <div class="file-toolbar">
+        <input id="file-filter" placeholder="Filter paths… (e.g. Documents/photos)" />
+        <span id="file-count" class="subtitle"></span>
+      </div>
+      <div id="file-list"></div>
     </section>
 
     <!-- Backup log -->

@@ -14,4 +14,5 @@ pub mod files;
 pub mod listing_cache;
 pub mod profile;
 pub mod runner;
+pub mod secrets;
 pub mod verify;

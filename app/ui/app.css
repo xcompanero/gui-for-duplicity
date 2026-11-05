@@ -86,6 +86,11 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 
 .actions { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
 .spacer { flex: 1; }
+.pass-actions { display: flex; gap: 8px; }
+button.secondary-dark {
+  background: #3d4348; border-color: #4a5055; color: white;
+}
+button.secondary-dark:hover { background: #4a5055; }
 
 button {
   padding: 7px 14px;
@@ -134,6 +139,34 @@ button:disabled { opacity: 0.5; cursor: default; }
 .chain .meta { color: var(--muted); font-size: 12.5px; margin-bottom: 8px; }
 .setlist { font-size: 12.5px; max-height: 200px; overflow-y: auto; }
 .setlist div { padding: 1px 0; }
+
+/* File browser */
+.file-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.file-toolbar input { flex: 1; margin-top: 0; }
+#file-list {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+#file-list .frow {
+  display: flex;
+  gap: 8px;
+  padding: 3px 10px;
+  border-bottom: 1px solid #ecf0f1;
+  cursor: default;
+  font-size: 13px;
+}
+#file-list .frow:hover { background: #e8f4fb; }
+#file-list .frow.dir { cursor: pointer; font-weight: 600; }
+#file-list .frow .fdate { color: var(--muted); min-width: 170px; }
+#file-list .frow .ficon { width: 18px; text-align: center; }
+.linklike {
+  background: none; border: none; padding: 0;
+  color: var(--accent-dark); font: inherit; font-weight: 600;
+}
+.linklike:hover { text-decoration: underline; }
 
 /* Log view */
 #log {

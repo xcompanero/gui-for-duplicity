@@ -126,6 +126,32 @@ $("#btn-delete").onclick = async () => {
 
 $("#btn-new-profile").onclick = blankProfile;
 
+// ---------- passphrase (KWallet) ----------
+$("#btn-store-pass").onclick = async () => {
+  const target = $("#profile-form").target.value.trim();
+  const pass = $("#profile-form").passphrase.value;
+  if (!target) return flashError("A target URL is required before storing a passphrase");
+  if (!pass) return flashError("Type the passphrase first, then save it");
+  try {
+    await invoke("store_passphrase", { target, passphrase: pass });
+    $("#profile-form").passphrase.value = "";
+    flash("Passphrase saved to KWallet for this target.");
+  } catch (e) {
+    flashError(String(e));
+  }
+};
+
+$("#btn-forget-pass").onclick = async () => {
+  const target = $("#profile-form").target.value.trim();
+  if (!target) return flashError("A target URL is required");
+  try {
+    await invoke("forget_passphrase", { target });
+    flash("Stored passphrase removed from KWallet (if any).");
+  } catch (e) {
+    flashError(String(e));
+  }
+};
+
 // ---------- status view ----------
 $("#btn-show-status").onclick = async () => {
   const p = readForm();
@@ -167,10 +193,119 @@ function renderStatus(report) {
         ${chain.num_volumes ?? "?"} volumes —
         ${fmt(chain.start_time)} → ${fmt(chain.end_time)}
       </div>
-      <div class="setlist">${sets}</div>`;
+      <div class="setlist">${sets}</div>
+      ${chain.kind === "Primary" ? '<button class="browse-btn">Browse current files</button>' : ""}`;
     box.appendChild(div);
   }
+  for (const btn of box.querySelectorAll(".browse-btn")) {
+    btn.onclick = () => openBrowserForChain($("#status-target").textContent);
+  }
 }
+
+// ---------- file browser ----------
+let browseTarget = null;
+let browseListing = null;
+let browseDirPrefix = null; // Path prefix currently "entered", or null = root
+
+$("#btn-files-back").onclick = () => showView("status");
+
+// Paths that are prefixes of other paths are directories (duplicity's
+// listing does not mark them).
+function computeDirs(entries) {
+  const dirs = new Set();
+  for (const e of entries) {
+    const parts = String(e.path).split("/");
+    parts.pop();
+    let acc = "";
+    for (const p of parts) {
+      acc = acc ? acc + "/" + p : p;
+      dirs.add(acc);
+    }
+  }
+  return dirs;
+}
+
+function parentOf(path) {
+  const parts = String(path).split("/");
+  parts.pop();
+  return parts.join("/");
+}
+
+function renderFileBrowser() {
+  if (!browseListing) return;
+  const all = browseListing.entries.filter((e) => e.path !== ".");
+  const dirs = computeDirs(all);
+  const filterText = $("#file-filter").value.toLowerCase().trim();
+  const prefix = browseDirPrefix;
+
+  // Inside a directory with no text filter: direct children only.
+  // Otherwise: everything matching the filter (across the whole tree).
+  let shown;
+  if (prefix && !filterText) {
+    shown = all.filter((e) => parentOf(e.path) === prefix);
+  } else {
+    shown = all.filter((e) => !filterText || e.path.toLowerCase().includes(filterText));
+    if (prefix) shown = shown.filter((e) => e.path === prefix || e.path.startsWith(prefix + "/"));
+  }
+
+  $("#file-count").textContent = `${shown.length} of ${all.length} entries`;
+  $("#files-meta").textContent = `${browseTarget} — at: ${prefix || "/"}`;
+
+  const box = $("#file-list");
+  box.innerHTML = "";
+
+  if (prefix) {
+    const up = document.createElement("div");
+    up.className = "frow dir";
+    up.innerHTML = `<span class="ficon">📁</span><span>..</span>`;
+    up.onclick = () => {
+      browseDirPrefix = parentOf(prefix) || null;
+      renderFileBrowser();
+    };
+    box.appendChild(up);
+  }
+
+  for (const e of shown) {
+    const isDir = dirs.has(e.path);
+    const row = document.createElement("div");
+    row.className = "frow" + (isDir ? " dir" : "");
+    const label = prefix ? String(e.path).slice(prefix.length + 1) : String(e.path);
+    row.innerHTML = `<span class="ficon">${isDir ? "📁" : "📄"}</span>
+      <span class="fdate">${new Date(e.mtime).toLocaleString()}</span>
+      <span>${label}</span>`;
+    if (isDir) {
+      row.onclick = () => {
+        browseDirPrefix = String(e.path);
+        $("#file-filter").value = "";
+        renderFileBrowser();
+      };
+    }
+    box.appendChild(row);
+  }
+}
+
+async function openBrowserForChain(target) {
+  browseTarget = target;
+  browseDirPrefix = null;
+  $("#file-filter").value = "";
+  $("#files-meta").textContent = `${target} — at: /`;
+  $("#file-count").textContent = "";
+  $("#file-list").innerHTML =
+    '<div class="frow"><span>Loading — building the file index. First time per target can take many minutes; afterwards it is cached…</span></div>';
+  showView("files");
+  try {
+    const res = await invoke("browse_files", { target, passphrase: null });
+    browseListing = res.listing;
+    $("#files-meta").textContent =
+      `${target} — at: / ${res.from_cache ? "(from cache)" : "(freshly parsed)"}`;
+    renderFileBrowser();
+  } catch (e) {
+    $("#file-list").innerHTML = "";
+    $("#file-count").textContent = String(e);
+  }
+}
+
+$("#file-filter").addEventListener("input", renderFileBrowser);
 
 // ---------- backup ----------
 $("#btn-backup").onclick = async () => {

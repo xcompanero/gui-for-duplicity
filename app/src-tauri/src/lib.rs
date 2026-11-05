@@ -42,6 +42,25 @@ fn err_msg(e: anyhow::Error) -> String {
     format!("{e:#}")
 }
 
+/// Build credentials for a target: an explicit passphrase wins; otherwise
+/// the KWallet-stored passphrase for that target is used, if one exists.
+fn resolve_credentials(
+    target: &str,
+    passphrase: Option<&str>,
+) -> Result<Credentials<'static>, anyhow::Error> {
+    let owned = match passphrase {
+        Some(p) => Some(p.to_string()),
+        None => engine::secrets::get_passphrase(target).unwrap_or(None),
+    };
+    Ok(Credentials {
+        // Leak is deliberate and bounded: one String per distinct target URL
+        // for the process lifetime. Credentials borrows &'static str, which
+        // lets commands return/hold them without lifetime gymnastics.
+        passphrase: owned.map(|p| &*Box::leak(p.into_boxed_str())),
+        ..Default::default()
+    })
+}
+
 #[tauri::command]
 fn duplicity_version() -> Result<String, String> {
     let run = runner::run_duplicity(&["--version".to_string()], &Credentials::new(), None)
@@ -82,12 +101,46 @@ fn delete_profile(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn collection_status(target: String, passphrase: Option<String>) -> Result<engine::collection::CollectionReport, String> {
-    let creds = Credentials {
-        passphrase: passphrase.as_deref(),
-        ..Default::default()
-    };
+fn collection_status(
+    target: String,
+    passphrase: Option<String>,
+) -> Result<engine::collection::CollectionReport, String> {
+    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
     runner::collection_status(&target, &creds, None).map_err(err_msg)
+}
+
+// ---------- passphrase (KWallet / Secret Service) ----------
+
+#[tauri::command]
+fn store_passphrase(target: String, passphrase: String) -> Result<(), String> {
+    engine::secrets::store_passphrase(&target, &passphrase).map_err(err_msg)
+}
+
+#[tauri::command]
+fn get_passphrase(target: String) -> Result<Option<String>, String> {
+    engine::secrets::get_passphrase(&target).map_err(err_msg)
+}
+
+#[tauri::command]
+fn forget_passphrase(target: String) -> Result<(), String> {
+    engine::secrets::forget_passphrase(&target).map_err(err_msg)
+}
+
+#[tauri::command]
+fn browse_files(
+    target: String,
+    passphrase: Option<String>,
+) -> Result<BrowseResult, String> {
+    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
+    engine::listing_cache::get_or_fetch(&target, None, &creds, None)
+        .map(|(listing, from_cache)| BrowseResult { listing, from_cache })
+        .map_err(err_msg)
+}
+
+#[derive(Serialize)]
+struct BrowseResult {
+    listing: engine::files::FileListing,
+    from_cache: bool,
 }
 
 /// Start a backup job for a profile. Returns a job id immediately; progress
@@ -102,14 +155,11 @@ fn start_backup(
     let profile = Profile::load_default(&name).map_err(err_msg)?;
     let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
     let args = profile.backup_args();
+    // 'static credentials (KWallet lookup / leaked owned string) move freely
+    // into the job thread.
+    let creds = resolve_credentials(&profile.target, passphrase.as_deref()).map_err(err_msg)?;
 
     std::thread::spawn(move || {
-        // Credentials must be constructed inside the thread: they borrow the
-        // owned passphrase string, which we move in here.
-        let creds = Credentials {
-            passphrase: passphrase.as_deref(),
-            ..Default::default()
-        };
         let app_for_log = app.clone();
         let listener = move |line: &str| {
             let _ = app_for_log.emit(
@@ -155,6 +205,10 @@ pub fn run() {
             save_profile,
             delete_profile,
             collection_status,
+            browse_files,
+            store_passphrase,
+            get_passphrase,
+            forget_passphrase,
             start_backup,
         ])
         .run(tauri::generate_context!())
