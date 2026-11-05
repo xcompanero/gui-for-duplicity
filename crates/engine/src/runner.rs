@@ -51,6 +51,9 @@ pub struct Credentials<'a> {
     pub passphrase: Option<&'a str>,
     /// Login password for the remote backend.
     pub backend_password: Option<&'a str>,
+    /// Extra duplicity options for this run (e.g. `--verbosity info`),
+    /// placed before the action word on the command line.
+    pub extra_args: Vec<String>,
     /// Any other environment variables to inject for this run.
     pub extra_env: Vec<(String, String)>,
 }
@@ -65,10 +68,12 @@ impl Credentials<'_> {
 pub fn collection_status(
     target: &str,
     credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
 ) -> Result<crate::collection::CollectionReport> {
     let run = run_duplicity(
         &["collection-status".to_string(), target.to_string()],
         credentials,
+        on_stderr_line,
     )?;
     if !run.success() {
         anyhow::bail!(
@@ -86,6 +91,7 @@ pub fn list_current_files(
     target: &str,
     time: Option<&str>,
     credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
 ) -> Result<crate::files::FileListing> {
     let mut args = vec!["list-current-files".to_string()];
     if let Some(t) = time {
@@ -93,7 +99,7 @@ pub fn list_current_files(
         args.push(t.to_string());
     }
     args.push(target.to_string());
-    let run = run_duplicity(&args, credentials)?;
+    let run = run_duplicity(&args, credentials, on_stderr_line)?;
     if !run.success() {
         anyhow::bail!(
             "duplicity list-current-files failed ({}):\n{}",
@@ -119,6 +125,7 @@ pub fn verify(
     compare_data: bool,
     time: Option<&str>,
     credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
 ) -> Result<VerifyOutcome> {
     let mut args: Vec<String> = vec!["verify".into()];
     if compare_data {
@@ -130,7 +137,7 @@ pub fn verify(
     }
     args.push(target.to_string());
     args.push(local_path.to_string());
-    let run = run_duplicity(&args, credentials)?;
+    let run = run_duplicity(&args, credentials, on_stderr_line)?;
     let report = crate::verify::parse(&run.stdout)?;
     Ok(VerifyOutcome {
         success: run.success(),
@@ -150,6 +157,7 @@ pub fn restore(
     time: Option<&str>,
     dest: &str,
     credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
 ) -> Result<DuplicityRun> {
     let mut args: Vec<String> = vec!["restore".into()];
     if let Some(p) = path_to_restore {
@@ -162,15 +170,21 @@ pub fn restore(
     }
     args.push(target.to_string());
     args.push(dest.to_string());
-    run_duplicity(&args, credentials)
+    run_duplicity(&args, credentials, on_stderr_line)
 }
 
 /// Low-level runner: spawn duplicity with `args`, capture output, inject
 /// credentials via environment only.
-pub fn run_duplicity(args: &[String], credentials: &Credentials<'_>) -> Result<DuplicityRun> {
+pub fn run_duplicity(
+    args: &[String],
+    credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
+) -> Result<DuplicityRun> {
     let duplicity = duplicity_path()?;
     let mut cmd = Command::new(&duplicity);
-    cmd.args(args)
+    let mut full_args: Vec<String> = credentials.extra_args.clone();
+    full_args.extend(args.iter().cloned());
+    cmd.args(&full_args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -195,22 +209,37 @@ pub fn run_duplicity(args: &[String], credentials: &Credentials<'_>) -> Result<D
         .with_context(|| format!("spawning {}", duplicity.display()))?;
 
     // Read stdout/stderr concurrently to avoid pipe deadlock on large output.
-    use std::io::Read;
+    // stderr is streamed line-by-line through a channel so a listener (the
+    // Phase 1 live log pane; the CLI's --live flag) sees messages in real time.
+    use std::io::{BufRead, Read};
     let mut stdout_handle = child.stdout.take().expect("stdout piped");
-    let mut stderr_handle = child.stderr.take().expect("stderr piped");
+    let stderr_handle = child.stderr.take().expect("stderr piped");
     let stdout = std::thread::spawn(move || {
         let mut buf = String::new();
         let _ = stdout_handle.read_to_string(&mut buf);
         buf
     });
-    let stderr = std::thread::spawn(move || {
-        let mut buf = String::new();
-        let _ = stderr_handle.read_to_string(&mut buf);
-        buf
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+    let stderr_reader = std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stderr_handle);
+        for line in reader.lines().map_while(Result::ok) {
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
     });
-    let exit_status = child.wait()?;
+    let mut stderr_buf = String::new();
+    while let Ok(line) = rx.recv() {
+        if let Some(cb) = on_stderr_line {
+            cb(&line);
+        }
+        stderr_buf.push_str(&line);
+        stderr_buf.push('\n');
+    }
+    let _ = stderr_reader.join();
     let stdout = stdout.join().unwrap_or_default();
-    let stderr = stderr.join().unwrap_or_default();
 
-    Ok(DuplicityRun { exit_status, stdout, stderr })
+    let exit_status = child.wait()?;
+
+    Ok(DuplicityRun { exit_status, stdout, stderr: stderr_buf })
 }

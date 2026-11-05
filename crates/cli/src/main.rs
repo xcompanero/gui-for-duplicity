@@ -30,7 +30,7 @@ fn main() -> Result<()> {
         "verify" => cmd_verify(rest),
         "restore" => cmd_restore(rest),
         _ => {
-            bail!("usage: engine-cli status <target-url> [--passphrase <s>] [--backend-password <s>]\n       engine-cli files <target-url> [--time <t>]\n       engine-cli verify <target-url> <local-path> [--time <t>] [--no-compare-data]\n       engine-cli restore <target-url> <dest-dir> [--file <path>] [--time <t>]\n       (secrets may be given via ENGINE_PASSPHRASE / ENGINE_BACKEND_PASSWORD)\n       engine-cli version");
+            bail!("usage: engine-cli status <target-url> [--passphrase <s>] [--backend-password <s>]\n       engine-cli files <target-url> [--time <t>] [--live] [--dup-verbosity info]\n       engine-cli verify <target-url> <local-path> [--time <t>] [--no-compare-data] [--live]\n       engine-cli restore <target-url> <dest-dir> [--file <path>] [--time <t>] [--live]\n       (secrets may be given via ENGINE_PASSPHRASE / ENGINE_BACKEND_PASSWORD;\n        --live streams duplicity's messages as they happen)\n       engine-cli version");
         }
     }
 }
@@ -42,7 +42,31 @@ struct Opts {
     passphrase: Option<String>,
     backend_password: Option<String>,
     file: Option<String>,
+    /// Stream duplicity's messages live instead of buffering until completion.
+    live: bool,
+    /// Verbosity level passed through to duplicity (--verbosity).
+    dup_verbosity: Option<String>,
     flags: Vec<String>,
+}
+
+impl Opts {
+    /// Credentials with any extra duplicity args applied.
+    fn engine_credentials(&self) -> engine::runner::Credentials<'_> {
+        let mut creds = self.credentials();
+        if let Some(v) = &self.dup_verbosity {
+            creds.extra_args = vec!["--verbosity".into(), v.clone()];
+        }
+        creds
+    }
+
+    /// Live stderr listener if --live was given.
+    fn stderr_listener(&self) -> Option<&dyn Fn(&str)> {
+        if self.live {
+            Some(&|line| eprintln!("[duplicity] {line}"))
+        } else {
+            None
+        }
+    }
 }
 
 fn parse_opts(args: Vec<String>) -> Result<Opts> {
@@ -52,6 +76,8 @@ fn parse_opts(args: Vec<String>) -> Result<Opts> {
         passphrase: None,
         backend_password: None,
         file: None,
+        live: false,
+        dup_verbosity: None,
         flags: Vec::new(),
     };
     let mut it = args.into_iter();
@@ -63,6 +89,10 @@ fn parse_opts(args: Vec<String>) -> Result<Opts> {
             "--backend-password" => {
                 o.backend_password = Some(it.next().context("--backend-password needs a value")?)
             }
+            "--dup-verbosity" => {
+                o.dup_verbosity = Some(it.next().context("--dup-verbosity needs a value")?)
+            }
+            "--live" => o.live = true,
             "--no-compare-data" => o.flags.push(arg),
             _ => o.positional.push(arg),
         }
@@ -105,7 +135,8 @@ impl Opts {
 fn cmd_status(args: Vec<String>) -> Result<()> {
     let o = parse_opts(args)?;
     let target = o.one_positional("target URL")?;
-    let report = engine::runner::collection_status(target, &o.credentials())?;
+    let report =
+        engine::runner::collection_status(target, &o.engine_credentials(), o.stderr_listener())?;
 
     println!("Target:            {target}");    match report.last_full_backup {
         Some(t) => println!("Last full backup:  {t}"),
@@ -164,7 +195,12 @@ fn cmd_status(args: Vec<String>) -> Result<()> {
 fn cmd_files(args: Vec<String>) -> Result<()> {
     let o = parse_opts(args)?;
     let target = o.one_positional("target URL")?;
-    let listing = engine::runner::list_current_files(target, o.time.as_deref(), &o.credentials())?;
+    let listing = engine::runner::list_current_files(
+        target,
+        o.time.as_deref(),
+        &o.engine_credentials(),
+        o.stderr_listener(),
+    )?;
 
     println!("Target: {target}");
     if let Some(t) = &o.time {
@@ -202,7 +238,8 @@ fn cmd_verify(args: Vec<String>) -> Result<()> {
         local,
         compare_data,
         o.time.as_deref(),
-        &o.credentials(),
+        &o.engine_credentials(),
+        o.stderr_listener(),
     )?;
 
     println!("Target:   {target}");
@@ -268,7 +305,8 @@ fn cmd_restore(args: Vec<String>) -> Result<()> {
         o.file.as_deref(),
         o.time.as_deref(),
         &final_dest,
-        &o.credentials(),
+        &o.engine_credentials(),
+        o.stderr_listener(),
     )?;
     if run.success() {
         println!("RESULT: RESTORE COMPLETE");
