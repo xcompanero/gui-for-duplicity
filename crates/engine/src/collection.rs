@@ -79,6 +79,20 @@ pub struct CollectionReport {
     pub unparsed: Vec<String>,
 }
 
+/// Informational lines duplicity 3.x emits around the report that carry no
+/// structural meaning. Recognising them keeps `unparsed` clean so that
+/// genuinely unknown lines stand out.
+const KNOWN_INFO_PREFIXES: &[&str] = &[
+    "Collection Status",
+    "Archive directory:",
+    "Connecting with backend:",
+    "No encryption keys configured.",
+    "Skipping passphrase request",
+    "No backup chains with active signatures found",
+    "No orphaned or incomplete backup sets found.",
+    "No orphaned or incomplete backup chains found.",
+];
+
 /// Parse the complete stdout of `duplicity collection-status`.
 pub fn parse(text: &str) -> Result<CollectionReport> {
     let mut report = CollectionReport::default();
@@ -87,6 +101,13 @@ pub fn parse(text: &str) -> Result<CollectionReport> {
     for raw in text.lines() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with("---") {
+            continue;
+        }
+        if KNOWN_INFO_PREFIXES.iter().any(|p| line.starts_with(p)) {
+            continue;
+        }
+        // "Found 0 secondary backup chain(s)." / "Found 1 secondary backup chain(s)."
+        if line.starts_with("Found ") && line.contains("backup chain") {
             continue;
         }
 
@@ -220,6 +241,22 @@ mod tests {
 
         assert!(report.last_full_backup.is_some());
         assert_eq!(report.last_full_backup, Some(report.chains[0].full.time));
+        assert!(report.orphans.is_empty());
+    }
+
+    #[test]
+    fn parses_real_empty_target_fixture() {
+        let text = fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/collection-status-real-1.txt"
+        ))
+        .expect("fixture file must exist");
+        let report = parse(&text).unwrap();
+        assert!(report.chains.is_empty());
+        assert!(report.last_full_backup.is_none());
+        // Everything in this real-world output should now be recognised;
+        // nothing should be left in `unparsed`.
+        assert!(report.unparsed.is_empty(), "unparsed: {:?}", report.unparsed);
         assert!(report.orphans.is_empty());
     }
 

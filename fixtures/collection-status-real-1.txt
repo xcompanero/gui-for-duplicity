@@ -1,0 +1,11 @@
+Last full backup date: none
+No encryption keys configured.
+Skipping passphrase request for action collection-status
+Collection Status
+-----------------
+Connecting with backend: BackendWrapper
+Archive directory: /home/aidan/.cache/duplicity/13174e44f2096745583cdf05d3a0b718
+
+Found 0 secondary backup chain(s).
+No backup chains with active signatures found
+No orphaned or incomplete backup sets found.
