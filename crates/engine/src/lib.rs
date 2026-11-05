@@ -10,5 +10,7 @@
 //! - [`runner`] — spawning duplicity processes and capturing their output
 
 pub mod collection;
+pub mod files;
 pub mod profile;
 pub mod runner;
+pub mod verify;

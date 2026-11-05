@@ -1,0 +1,19 @@
+Last full backup date: Thu Nov  5 12:47:14 2026
+Collection Status
+-----------------
+Connecting with backend: BackendWrapper
+Archive directory: /home/aidan/.cache/duplicity/612cf75d54db0066fde8762967b0fe5a
+
+Found 0 secondary backup chain(s).
+
+Found primary backup chain with matching signature chain:
+-------------------------
+Chain start time: Thu Nov  5 12:47:14 2026
+Chain end time: Thu Nov  5 12:47:16 2026
+Number of contained backup sets: 2
+Total number of contained volumes: 2
+ Type of backup set:                            Time:   Number of volumes:
+                Full         Thu Nov  5 12:47:14 2026                 1
+         Incremental         Thu Nov  5 12:47:16 2026                 1
+-------------------------
+No orphaned or incomplete backup sets found.

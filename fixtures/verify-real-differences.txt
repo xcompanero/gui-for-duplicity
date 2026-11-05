@@ -1,0 +1,6 @@
+Local and Remote metadata are synchronized, no sync needed.
+Last full backup date: Thu Nov  5 12:47:14 2026
+Difference found: File . has mtime Thu Nov  5 12:47:24 2026, expected Thu Nov  5 12:44:18 2026
+Difference found: New file d.txt
+Difference found: File sub/b.txt has mtime Thu Nov  5 12:47:24 2026, expected Thu Nov  5 12:44:48 2026
+Verify complete: 6 file(s) compared, 3 difference(s) found.

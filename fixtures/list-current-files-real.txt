@@ -1,0 +1,7 @@
+Local and Remote metadata are synchronized, no sync needed.
+Last full backup date: Thu Nov  5 12:47:14 2026
+Thu Nov  5 12:44:18 2026 .
+Thu Nov  5 12:44:24 2026 a.txt
+Thu Nov  5 12:44:24 2026 sub
+Thu Nov  5 12:44:48 2026 sub/b.txt
+Thu Nov  5 12:44:24 2026 sub/c.txt

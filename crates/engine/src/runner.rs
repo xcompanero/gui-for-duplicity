@@ -80,6 +80,91 @@ pub fn collection_status(
     crate::collection::parse(&run.stdout)
 }
 
+/// Run `duplicity list-current-files <target>` and parse its output.
+/// `time` is an optional duplicity `--time` value (e.g. `2026-11-05T12:44:24`).
+pub fn list_current_files(
+    target: &str,
+    time: Option<&str>,
+    credentials: &Credentials<'_>,
+) -> Result<crate::files::FileListing> {
+    let mut args = vec!["list-current-files".to_string()];
+    if let Some(t) = time {
+        args.push("--time".into());
+        args.push(t.to_string());
+    }
+    args.push(target.to_string());
+    let run = run_duplicity(&args, credentials)?;
+    if !run.success() {
+        anyhow::bail!(
+            "duplicity list-current-files failed ({}):\n{}",
+            run.exit_status,
+            run.stderr.trim()
+        );
+    }
+    crate::files::parse(&run.stdout)
+}
+
+/// Outcome of a `duplicity verify` run. Note: `success == false` typically
+/// means *differences were found* — that is a report, not a crash.
+pub struct VerifyOutcome {
+    pub report: crate::verify::VerifyReport,
+    pub success: bool,
+    pub stderr: String,
+}
+
+/// Run `duplicity verify [--compare-data] [--time T] <target> <local_path>`.
+pub fn verify(
+    target: &str,
+    local_path: &str,
+    compare_data: bool,
+    time: Option<&str>,
+    credentials: &Credentials<'_>,
+) -> Result<VerifyOutcome> {
+    let mut args: Vec<String> = vec!["verify".into()];
+    if compare_data {
+        args.push("--compare-data".into());
+    }
+    if let Some(t) = time {
+        args.push("--time".into());
+        args.push(t.to_string());
+    }
+    args.push(target.to_string());
+    args.push(local_path.to_string());
+    let run = run_duplicity(&args, credentials)?;
+    let report = crate::verify::parse(&run.stdout)?;
+    Ok(VerifyOutcome {
+        success: run.success(),
+        report,
+        stderr: run.stderr,
+    })
+}
+
+/// Run a selective restore:
+/// `duplicity restore [--path-to-restore P] [--time T] <target> <dest>`.
+/// (`--path-to-restore` was called `--file-to-restore` before duplicity 2.0.)
+/// Returns the raw run (restore output is progress-style; Phase 1 will
+/// stream it). The destination should be a fresh, empty directory.
+pub fn restore(
+    target: &str,
+    path_to_restore: Option<&str>,
+    time: Option<&str>,
+    dest: &str,
+    credentials: &Credentials<'_>,
+) -> Result<DuplicityRun> {
+    let mut args: Vec<String> = vec!["restore".into()];
+    if let Some(p) = path_to_restore {
+        args.push("--path-to-restore".into());
+        args.push(p.to_string());
+    }
+    if let Some(t) = time {
+        args.push("--time".into());
+        args.push(t.to_string());
+    }
+    args.push(target.to_string());
+    args.push(dest.to_string());
+    run_duplicity(&args, credentials)
+}
+
 /// Low-level runner: spawn duplicity with `args`, capture output, inject
 /// credentials via environment only.
 pub fn run_duplicity(args: &[String], credentials: &Credentials<'_>) -> Result<DuplicityRun> {
@@ -89,11 +174,15 @@ pub fn run_duplicity(args: &[String], credentials: &Credentials<'_>) -> Result<D
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(pass) = credentials.passphrase {
-        cmd.env("PASSPHRASE", pass);
-    } else {
-        cmd.env_remove("PASSPHRASE");
-    }
+    // Duplicity 3.x quirk (observed): even for --no-encryption targets, read
+    // actions attempt a GPG passphrase prompt, which crashes any
+    // non-interactive process. Always supplying PASSPHRASE prevents that;
+    // for genuinely encrypted targets a placeholder simply fails cleanly
+    // with a GPG error instead of hanging.
+    cmd.env(
+        "PASSPHRASE",
+        credentials.passphrase.unwrap_or("duplicity-gui-placeholder"),
+    );
     if let Some(pass) = credentials.backend_password {
         cmd.env("BACKEND_PASSWORD", pass);
     }

@@ -144,6 +144,7 @@ const KNOWN_INFO_PREFIXES: &[&str] = &[
     "No orphaned or incomplete backup sets found.",
     "No orphaned or incomplete backup chains found.",
     "Type of backup set:",
+    "LFTP version is",
 ];
 
 /// Parse the complete stdout of `duplicity collection-status`.
