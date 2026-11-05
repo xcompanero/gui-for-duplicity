@@ -167,7 +167,9 @@ fn browse_files(
             let app_bg = app.clone();
             let target_bg = target.clone();
             std::thread::spawn(move || {
-                let fresh = engine::listing_cache::current_chain_end(&target_bg, &creds_bg).ok();
+                let fresh = engine::listing_cache::current_chain_end(&target_bg, &creds_bg)
+                    .ok()
+                    .flatten();
                 let stale = match (fresh, cached_end) {
                     (Some(f), Some(c)) => f != c,
                     (Some(_), None) => true, // cached listing predates chain tracking
