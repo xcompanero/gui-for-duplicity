@@ -29,6 +29,8 @@ fn main() -> Result<()> {
         "files" => cmd_files(rest),
         "verify" => cmd_verify(rest),
         "restore" => cmd_restore(rest),
+        "backup" => cmd_backup(rest),
+        "schedule" => cmd_schedule(rest),
         "seed-cache" => cmd_seed_cache(rest),
         _ => {
             bail!("usage: engine-cli status <target-url> [--passphrase <s>] [--backend-password <s>]\n       engine-cli files <target-url> [--time <t>] [--live] [--dup-verbosity info]\n       engine-cli verify <target-url> <local-path> [--time <t>] [--no-compare-data] [--live]\n       engine-cli restore <target-url> <dest-dir> [--file <path>] [--time <t>] [--live]\n       (secrets may be given via ENGINE_PASSPHRASE / ENGINE_BACKEND_PASSWORD;\n        --live streams duplicity's messages as they happen)\n       engine-cli version");
@@ -142,6 +144,95 @@ impl Opts {
             bail!("expected exactly two {what}");
         }
         Ok((&self.positional[0], &self.positional[1]))
+    }
+}
+
+/// Manage a profile's systemd user timer.
+///   engine-cli schedule <profile> <on-calendar|off>
+///   engine-cli schedule <profile> --status
+fn cmd_schedule(args: Vec<String>) -> Result<()> {
+    if args.len() != 2 {
+        bail!("usage: engine-cli schedule <profile> <on-calendar|off>\n       engine-cli schedule <profile> --status");
+    }
+    let (name, arg) = (args[0].clone(), args[1].clone());
+    if arg == "--status" {
+        let profile = engine::profile::Profile::load_default(&name)?;
+        let s = engine::schedule::status(&profile)?;
+        println!(
+            "profile: {} — calendar: {} — timer: {} — next run: {}",
+            name,
+            s.calendar.as_deref().unwrap_or("(none)"),
+            if s.enabled { "enabled" } else { "disabled" },
+            s.next_run.as_deref().unwrap_or("(none)")
+        );
+        return Ok(());
+    }
+    let mut profile = engine::profile::Profile::load_default(&name)?;
+    if arg == "off" {
+        profile.schedule = String::new();
+        profile.save_default()?;
+        let _ = engine::schedule::disable(&name);
+        println!("Schedule removed for {name}");
+        return Ok(());
+    }
+    // Write and enable; systemd rejects bad calendars at daemon-reload.
+    profile.schedule = arg.clone();
+    profile.save_default()?;
+    engine::schedule::write_units(&profile)?;
+    engine::schedule::enable(&name)?;
+    let s = engine::schedule::status(&profile)?;
+    println!(
+        "Scheduled {name}: {} — timer {} — next run: {}",
+        arg,
+        if s.enabled { "enabled" } else { "FAILED to enable" },
+        s.next_run.as_deref().unwrap_or("(none)")
+    );
+    Ok(())
+}
+
+/// Run a profile's backup headlessly — this is what the systemd user
+/// service invokes. Passphrase comes from the Secret Service (KWallet).
+fn cmd_backup(args: Vec<String>) -> Result<()> {
+    let mut name: Option<String> = None;
+    let mut force_new_chain = false;
+    for a in args {
+        match a.as_str() {
+            "--force-new-chain" => force_new_chain = true,
+            _ => {
+                if name.is_some() {
+                    bail!("unexpected extra argument: {a}");
+                }
+                name = Some(a);
+            }
+        }
+    }
+    let name = name.context("usage: engine-cli backup <profile-name> [--force-new-chain]")?;
+
+    let prepared = engine::jobs::prepare_backup(&name, force_new_chain)?;
+    let started = std::time::Instant::now();
+    let live = {
+        use std::io::IsTerminal;
+        std::io::stderr().is_terminal()
+    };
+    let listener = move |line: &str| {
+        if live {
+            eprintln!("[duplicity] {line}");
+        }
+    };
+    let outcome = engine::jobs::run_backup(&prepared, Some(&listener))?;
+    println!("{}", outcome.message);
+    if !outcome.success {
+        anyhow::bail!("backup of {name} failed after {}", engine_elapsed(started.elapsed()));
+    }
+    Ok(())
+}
+
+fn engine_elapsed(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    if s >= 60 {
+        format!("{}m {:02}s", s / 60, s % 60)
+    } else {
+        format!("{s}s")
     }
 }
 

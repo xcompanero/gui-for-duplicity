@@ -59,10 +59,12 @@ function fillForm(p) {
   f.encrypt.checked = p.encrypt !== false;
   f.read_only.checked = p.read_only === true;
   f.original_root.value = p.original_root || "";
+  f.schedule.value = p.schedule || "";
   f.read_only.onchange = () => { $("#btn-backup").hidden = f.read_only.checked; };
   $("#profile-heading").textContent = `Profile: ${p.name || "(new)"}`;
   $("#save-msg").textContent = "";
   $("#btn-delete").disabled = !p.name;
+  refreshScheduleStatus(p.name || "");
   // Restore-only profiles must never offer the backup button; verify needs
   // exactly one source directory to compare against.
   $("#btn-backup").hidden = f.read_only.checked;
@@ -440,6 +442,54 @@ $("#btn-cancel-restore").onclick = () => {
   $("#restore-bar").hidden = true;
 };
 
+// ---------- schedule ----------
+async function refreshScheduleStatus(name) {
+  const el = $("#schedule-status");
+  if (!name) { el.textContent = ""; return; }
+  try {
+    const s = await invoke("get_schedule", { name });
+    if (!s.calendar) {
+      el.textContent = "Not scheduled — backups run manually only.";
+    } else if (s.enabled) {
+      el.textContent = `Scheduled (${s.calendar}) — next run: ${s.next_run ?? "pending"}`;
+    } else {
+      el.textContent = `Schedule set (${s.calendar}) but the timer is NOT enabled.`;
+    }
+  } catch (e) {
+    el.textContent = String(e);
+  }
+}
+
+$("#btn-set-schedule").onclick = async () => {
+  const p = readForm();
+  if (!p.name) return flashError("Save the profile first");
+  const cal = $("#profile-form").schedule.value.trim();
+  if (!cal) return flashError("Enter an OnCalendar expression first (e.g. daily)");
+  try {
+    await invoke("save_profile", { profile: { ...p, schedule: cal } });
+    const s = await invoke("set_schedule", { name: p.name, calendar: cal });
+    $("#schedule-status").textContent = s.enabled
+      ? `Scheduled (${s.calendar}) — next run: ${s.next_run ?? "pending"}`
+      : "Timer could not be enabled — see the application log.";
+    await refreshProfiles();
+    renderProfileList();
+  } catch (e) {
+    $("#schedule-status").textContent = String(e);
+  }
+};
+
+$("#btn-remove-schedule").onclick = async () => {
+  const p = readForm();
+  if (!p.name) return;
+  try {
+    await invoke("save_profile", { profile: { ...p, schedule: "" } });
+    await invoke("set_schedule", { name: p.name, calendar: null });
+    $("#schedule-status").textContent = "Schedule removed — backups run manually only.";
+  } catch (e) {
+    $("#schedule-status").textContent = String(e);
+  }
+};
+
 // ---------- verify ----------
 $("#btn-verify").onclick = async () => {
   const p = readForm();
@@ -539,7 +589,6 @@ async function runBackup(name, forceNewChain) {
   try {
     activeJobId = await invoke("start_backup", {
       name,
-      passphrase: null,
       forceNewChain,
     });
     $("#log").textContent = "";

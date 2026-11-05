@@ -57,6 +57,10 @@ pub struct Profile {
     /// `<original_root>/<relative path>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_root: Option<String>,
+    /// systemd OnCalendar expression for scheduled runs (e.g. `daily`,
+    /// `2026-*-* 04:00:00`). Empty = not scheduled.
+    #[serde(default)]
+    pub schedule: String,
 }
 
 fn default_true() -> bool {
@@ -176,6 +180,7 @@ mod tests {
             extra_options: vec!["--volsize=500".into()],
             gpg_options: vec![],
             retention: "6M".into(),
+            schedule: String::new(),
             encrypt: true,
             last_backup_encrypt: None,
             read_only: false,
@@ -200,6 +205,7 @@ mod tests {
             extra_options: vec![],
             gpg_options: vec![],
             retention: String::new(),
+            schedule: String::new(),
             encrypt: false,
             last_backup_encrypt: None,
             read_only: false,
@@ -231,6 +237,7 @@ mod tests {
             extra_options: vec![],
             gpg_options: vec![],
             retention: String::new(),
+            schedule: String::new(),
             encrypt: true,
             last_backup_encrypt: None,
             read_only: false,
