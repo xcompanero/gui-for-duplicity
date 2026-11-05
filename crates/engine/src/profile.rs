@@ -40,6 +40,53 @@ pub struct Profile {
 }
 
 impl Profile {
+    /// The standard location for profiles on Linux:
+    /// `$XDG_CONFIG_HOME/gui-for-duplicity/profiles` (typically
+    /// `~/.config/gui-for-duplicity/profiles`).
+    pub fn default_profiles_dir() -> PathBuf {
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+            .unwrap_or_else(|| {
+                let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+                home.join(".config")
+            });
+        base.join("gui-for-duplicity").join("profiles")
+    }
+
+    /// Save this profile to the default profiles directory
+    /// (`<dir>/<name>.toml`).
+    pub fn save_default(&self) -> Result<PathBuf> {
+        let dir = Self::default_profiles_dir();
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join(format!("{}.toml", self.name));
+        self.save(&path)?;
+        Ok(path)
+    }
+
+    /// Load a profile by name from the default directory.
+    pub fn load_default(name: &str) -> Result<Self> {
+        Self::load(&Self::default_profiles_dir().join(format!("{name}.toml")))
+    }
+
+    /// List profile names available in the default directory.
+    pub fn list_default() -> Vec<String> {
+        let dir = Self::default_profiles_dir();
+        let mut names = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|e| e == "toml") {
+                    if let Some(stem) = path.file_stem() {
+                        names.push(stem.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+        names.sort();
+        names
+    }
+
     /// Load a profile from a TOML file.
     pub fn load(path: &Path) -> Result<Self> {
         let text = std::fs::read_to_string(path)

@@ -32,7 +32,7 @@ const KNOWN_INFO_PREFIXES: &[&str] = &[
 ];
 
 /// The parsed result of a `duplicity verify` run.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct VerifyReport {
     /// Files compared, from the "Verify complete:" summary line.
     pub files_compared: Option<u64>,

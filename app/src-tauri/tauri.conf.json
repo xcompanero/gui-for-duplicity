@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GUI For Duplicity",
+  "version": "0.1.0",
+  "identifier": "org.racecloud.gui-for-duplicity",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "GUI For Duplicity",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}

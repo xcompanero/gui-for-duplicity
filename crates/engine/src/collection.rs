@@ -24,7 +24,7 @@ use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
 
 /// One volume-set in a backup chain: a full backup or an incremental.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum SetKind {
     Full,
     Inc,
@@ -39,7 +39,7 @@ impl std::fmt::Display for SetKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct BackupSet {
     pub kind: SetKind,
     pub time: DateTime<Local>,
@@ -62,7 +62,7 @@ impl std::fmt::Display for BackupSet {
 /// chain matches — i.e. the one duplicity will extend on the next backup)
 /// or a *secondary* chain (an older full and its incrementals, kept by
 /// retention policy).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum ChainKind {
     Primary,
     Secondary,
@@ -78,7 +78,7 @@ impl std::fmt::Display for ChainKind {
 }
 
 /// A chain: one full backup plus zero or more incrementals on top of it.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Chain {
     pub kind: ChainKind,
     /// When the chain's full backup was taken (also its first set).
@@ -118,7 +118,7 @@ impl Chain {
 }
 
 /// The parsed result of a `collection-status` run.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct CollectionReport {
     /// "Last full backup date" from the header; `None` if it printed `none`.
     pub last_full_backup: Option<DateTime<Local>>,

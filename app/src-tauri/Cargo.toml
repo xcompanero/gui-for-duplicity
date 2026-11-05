@@ -1,0 +1,18 @@
+[package]
+name = "gui-for-duplicity"
+description = "GUI frontend for the Duplicity backup program"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+engine = { path = "../../crates/engine" }

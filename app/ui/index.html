@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GUI For Duplicity</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <aside id="sidebar">
+    <h1>GUI For <span>Duplicity</span></h1>
+    <nav id="profile-list" aria-label="Backup profiles"></nav>
+    <button id="btn-new-profile" class="secondary">＋ New Profile</button>
+  </aside>
+
+  <main>
+    <!-- Profile editor -->
+    <section id="view-profile" class="view">
+      <h2 id="profile-heading">Profile</h2>
+      <form id="profile-form" autocomplete="off">
+        <label>Name
+          <input name="name" required placeholder="e.g. home-docs" />
+        </label>
+        <label>Target URL
+          <input name="target" required placeholder="sftp://nas/homes/aidan/Backups/…" />
+        </label>
+        <label>Source directories (one per line)
+          <textarea name="sources" rows="3" placeholder="/home/aidan/Documents"></textarea>
+        </label>
+        <label>Exclude patterns (one per line)
+          <textarea name="excludes" rows="3" placeholder="**/.cache/**"></textarea>
+        </label>
+        <div class="row">
+          <label>Retention (remove-older-than)
+            <input name="retention" placeholder="6M — empty = never prune" />
+          </label>
+          <label>Extra duplicity options
+            <input name="extra_options" placeholder="--volsize=500 …" />
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" class="primary">Save profile</button>
+          <button type="button" id="btn-delete" class="danger">Delete</button>
+          <span class="spacer"></span>
+          <button type="button" id="btn-show-status">Show backup status</button>
+          <button type="button" id="btn-backup" class="primary">Back up now</button>
+        </div>
+        <p id="save-msg" class="msg"></p>
+      </form>
+    </section>
+
+    <!-- Backup status -->
+    <section id="view-status" class="view" hidden>
+      <h2>Backup status <span id="status-target" class="subtitle"></span></h2>
+      <p id="status-summary"></p>
+      <div id="chains"></div>
+    </section>
+
+    <!-- Backup log -->
+    <section id="view-log" class="view" hidden>
+      <h2>Backup log <span id="log-job" class="subtitle"></span></h2>
+      <pre id="log" aria-live="polite"></pre>
+      <p id="log-status" class="msg"></p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
