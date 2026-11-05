@@ -86,6 +86,20 @@
         <span>A newer backup exists on this target — the index below is from the previous one.</span>
         <button id="btn-refresh-index">Refresh index</button>
       </div>
+      <div id="restore-bar" class="restore-bar" hidden>
+        <div class="restore-line">
+          <span class="rlabel">Restore</span>
+          <code id="restore-path"></code>
+          <span class="rlabel">to</span>
+          <input id="restore-dest" placeholder="destination directory" />
+          <button id="btn-choose-dest">Choose…</button>
+        </div>
+        <div class="restore-line">
+          <button id="btn-do-restore" class="primary">Restore</button>
+          <button id="btn-cancel-restore">Cancel</button>
+          <span id="restore-note" class="subtitle"></span>
+        </div>
+      </div>
       <div id="file-list"></div>
     </section>
 

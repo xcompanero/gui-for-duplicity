@@ -283,9 +283,11 @@ function renderFileBrowser() {
     const label = prefix ? String(e.path).slice(prefix.length + 1) : String(e.path);
     row.innerHTML = `<span class="ficon">${isDir ? "📁" : "📄"}</span>
       <span class="fdate">${new Date(e.mtime).toLocaleString()}</span>
-      <span>${label}</span>`;
+      <span>${label}</span>
+      <button class="frestore" title="Restore this ${isDir ? "folder" : "file"}">⤓</button>`;
     if (isDir) {
-      row.onclick = () => {
+      const labelSpan = row.querySelectorAll("span")[2];
+      labelSpan.onclick = () => {
         browseDirPrefix = String(e.path);
         $("#file-filter").value = "";
         renderFileBrowser();
@@ -354,6 +356,99 @@ $("#file-filter").addEventListener("input", () => {
   filterTimer = setTimeout(renderFileBrowser, 150);
 });
 
+// ---------- restore from the browser ----------
+let restoreJobKind = null; // "backup" | "restore"
+let lastRestoreDest = null;
+
+// Per-row ⤓ buttons (event delegation: rows come and go with filtering).
+$("#file-list").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest(".frestore");
+  if (!btn) return;
+  const row = btn.closest(".frow");
+  const labelSpan = row?.querySelectorAll("span")[2];
+  if (!labelSpan) return;
+  const rel = labelSpan.textContent;
+  const path = browseDirPrefix ? `${browseDirPrefix}/${rel}` : rel;
+  openRestoreBar(path);
+});
+
+async function openRestoreBar(path) {
+  $("#restore-path").textContent = path;
+  $("#restore-note").textContent = "";
+  const bar = $("#restore-bar");
+  bar.hidden = false;
+  const destInput = $("#restore-dest");
+  if (!destInput.value) {
+    try {
+      const home = await invoke("home_dir");
+      destInput.value = `${home}/RestoredFromBackup`;
+    } catch {
+      destInput.value = "/tmp/restored-from-backup";
+    }
+  }
+  destInput.focus();
+}
+
+$("#btn-cancel-restore").onclick = () => {
+  $("#restore-bar").hidden = true;
+};
+
+$("#btn-choose-dest").onclick = async () => {
+  try {
+    const picked = await window.__TAURI__.dialog.open({
+      directory: true,
+      multiple: false,
+      title: "Choose restore destination",
+    });
+    if (typeof picked === "string" && picked) {
+      $("#restore-dest").value = picked;
+    }
+  } catch (e) {
+    $("#restore-note").textContent = String(e);
+  }
+};
+
+$("#btn-do-restore").onclick = async () => {
+  const path = $("#restore-path").textContent;
+  const dest = $("#restore-dest").value.trim();
+  if (!path || !dest) return;
+  const home = await invoke("home_dir");
+  const intoHome = dest === home || dest.startsWith(`${home}/`);
+  const originalSpot = (`${home}/${path}` === `${dest}/${path.split("/").pop()}`);
+  const lines = [
+    `Restore:  ${path}`,
+    `From:     ${browseTarget}`,
+    `Into:     ${dest}/${path.split("/").pop()}`,
+    "",
+    "Existing files are never overwritten — duplicity refuses.",
+    intoHome
+      ? "⚠ You have chosen a destination inside your home directory: missing files will be recreated among your live data."
+      : "",
+    originalSpot
+      ? "⚠ This is the file's original location in your home directory."
+      : "",
+  ].filter(Boolean);
+  if (!confirm(lines.join("\n"))) return;
+
+  restoreJobKind = "restore";
+  lastRestoreDest = dest;
+  try {
+    activeJobId = await invoke("start_restore", {
+      target: browseTarget,
+      path,
+      time: null,
+      destDir: dest,
+      passphrase: null,
+    });
+    $("#log").textContent = "";
+    $("#log-job").textContent = `restore job #${activeJobId} — ${path}`;
+    $("#log-status").textContent = "Restoring…";
+    showView("log");
+  } catch (e) {
+    $("#restore-note").textContent = String(e);
+  }
+};
+
 // ---------- backup ----------
 $("#btn-backup").onclick = async () => {
   const p = readForm();
@@ -362,6 +457,7 @@ $("#btn-backup").onclick = async () => {
 };
 
 async function runBackup(name, forceNewChain) {
+  restoreJobKind = "backup";
   try {
     activeJobId = await invoke("start_backup", {
       name,
@@ -396,11 +492,25 @@ async function runBackup(name, forceNewChain) {
   });
 
   await listen("job-done", (ev) => {
-    const { job_id: id, ok } = ev.payload;
+    const { job_id: id, ok, message } = ev.payload;
     if (id !== activeJobId) return;
     const el = $("#log-status");
-    el.textContent = ok ? "Backup finished successfully." : "Backup FAILED — see log above.";
+    el.textContent = message || (ok ? "Job finished successfully." : "Job FAILED — see log above.");
     el.className = "msg" + (ok ? "" : " error");
+    if (restoreJobKind === "restore" && ok && lastRestoreDest) {
+      const openBtn = document.createElement("button");
+      openBtn.textContent = "Open folder in file manager";
+      openBtn.style.marginLeft = "10px";
+      openBtn.onclick = async () => {
+        try {
+          await window.__TAURI__.opener.openPath(lastRestoreDest);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      el.appendChild(openBtn);
+    }
+    restoreJobKind = null;
   });
 
   showView("profile");

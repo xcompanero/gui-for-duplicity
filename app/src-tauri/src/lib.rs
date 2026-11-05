@@ -28,6 +28,7 @@ struct JobDone {
     job_id: u64,
     ok: bool,
     exit_code: Option<i32>,
+    message: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -270,29 +271,110 @@ fn start_backup(
                         job_id,
                         ok: run.success(),
                         exit_code: run.exit_status.code(),
+                        message: if run.success() {
+                            Some("Backup finished successfully.".to_string())
+                        } else {
+                            Some("Backup FAILED — see log above.".to_string())
+                        },
                     },
                 )
             }
-            Err(e) => app.emit(
-                "job-done",
-                JobDone { job_id, ok: false, exit_code: None },
-            )
-            .map(|_| {
-                let _ = app.emit(
-                    "job-log",
-                    JobLogLine { job_id, line: format!("ERROR: {e:#}") },
-                );
-            }),
+            Err(e) => {
+                let message = err_msg(e);
+                app.emit(
+                    "job-done",
+                    JobDone { job_id, ok: false, exit_code: None, message: Some(message.clone()) },
+                )
+                .map(|_| {
+                    let _ = app.emit(
+                        "job-log",
+                        JobLogLine { job_id, line: format!("ERROR: {message}") },
+                    );
+                })
+            },
         };
     });
 
     Ok(job_id)
 }
 
+/// Start a restore job: `path` (or the whole snapshot when None) from
+/// `target` at optional `time`, restored *into* `dest_dir` (the item keeps
+/// its own name). Progress streams as job-log events.
+#[tauri::command]
+fn start_restore(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    target: String,
+    path: Option<String>,
+    time: Option<String>,
+    dest_dir: String,
+    passphrase: Option<String>,
+) -> Result<u64, String> {
+    let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
+    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
+
+    std::thread::spawn(move || {
+        let app_log = app.clone();
+        let listener = move |line: &str| {
+            let _ = app_log.emit(
+                "job-log",
+                JobLogLine { job_id, line: line.to_string() },
+            );
+        };
+        match runner::restore_into_dir(
+            &target,
+            path.as_deref(),
+            time.as_deref(),
+            &dest_dir,
+            &creds,
+            Some(&listener),
+        ) {
+            Ok(outcome) => {
+                let message = if outcome.success {
+                    Some(format!("Restored to {}", outcome.final_dest))
+                } else if outcome.refused_existing {
+                    Some(format!(
+                        "Restored nothing: {}. Duplicity never overwrites existing files.",
+                        outcome.stderr
+                    ))
+                } else {
+                    Some(format!(
+                        "Restore failed — see log above.{}",
+                        if outcome.stderr.trim().is_empty() {
+                            String::new()
+                        } else {
+                            format!("\n{}", outcome.stderr.trim())
+                        }
+                    ))
+                };
+                let _ = app.emit(
+                    "job-done",
+                    JobDone { job_id, ok: outcome.success, exit_code: None, message },
+                );
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "job-done",
+                    JobDone { job_id, ok: false, exit_code: None, message: Some(err_msg(e)) },
+                );
+            }
+        }
+    });
+
+    Ok(job_id)
+}
+
+#[tauri::command]
+fn home_dir() -> String {
+    std::env::var("HOME").unwrap_or_default()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             duplicity_version,
@@ -306,6 +388,8 @@ pub fn run() {
             get_passphrase,
             forget_passphrase,
             start_backup,
+            start_restore,
+            home_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

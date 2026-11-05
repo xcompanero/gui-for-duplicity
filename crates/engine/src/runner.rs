@@ -173,6 +173,98 @@ pub fn restore(
     run_duplicity(&args, credentials, on_stderr_line)
 }
 
+/// Outcome of a restore performed "into" a destination directory.
+#[derive(Debug)]
+pub struct RestoreOutcome {
+    pub success: bool,
+    /// True when the restore was not attempted/completed because the
+    /// destination path already exists (duplicity refuses to overwrite).
+    pub refused_existing: bool,
+    pub final_dest: String,
+    pub stderr: String,
+}
+
+fn dest_refusal(out: &str) -> bool {
+    out.contains("Will not overwrite") || out.contains("is not empty or is current_dir")
+}
+
+/// Restore a path (or the whole snapshot when `path` is `None`) *into*
+/// `dest_dir`, preserving the item's own name: restoring `sub/c.txt` into
+/// `/tmp/x` yields `/tmp/x/c.txt`.
+///
+/// Safety behaviour (verified empirically against duplicity 3.0.x):
+/// - an existing destination FILE is never overwritten — duplicity refuses
+///   ("Will not overwrite"); we pre-check and refuse even earlier;
+/// - a directory restore merges into an existing directory without touching
+///   unrelated content.
+pub fn restore_into_dir(
+    target: &str,
+    path: Option<&str>,
+    time: Option<&str>,
+    dest_dir: &str,
+    credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
+) -> Result<RestoreOutcome> {
+    let dest = std::path::Path::new(dest_dir);
+    if !dest.is_dir() {
+        std::fs::create_dir_all(dest)
+            .with_context(|| format!("creating destination directory {dest_dir}"))?;
+    }
+
+    let final_dest = match path {
+        Some(p) => {
+            let base = std::path::Path::new(p)
+                .file_name()
+                .map(|b| b.to_string_lossy().to_string())
+                .with_context(|| format!("no file name in restore path {p:?}"))?;
+            dest.join(base)
+        }
+        None => dest.to_path_buf(),
+    };
+
+    // Pre-check: duplicity refuses to overwrite; fail fast and clearly.
+    if final_dest.exists() {
+        return Ok(RestoreOutcome {
+            success: false,
+            refused_existing: true,
+            final_dest: final_dest.display().to_string(),
+            stderr: format!(
+                "destination {} already exists — duplicity never overwrites; \
+                 choose a different destination or remove the existing item first",
+                final_dest.display()
+            ),
+        });
+    }
+    // A full (no --path-to-restore) restore needs an empty destination.
+    if path.is_none() {
+        let empty = std::fs::read_dir(dest)?.next().is_none();
+        if !empty {
+            return Ok(RestoreOutcome {
+                success: false,
+                refused_existing: true,
+                final_dest: final_dest.display().to_string(),
+                stderr: "full restore needs an empty destination directory".into(),
+            });
+        }
+    }
+
+    let run = restore(
+        target,
+        path,
+        time,
+        &final_dest.display().to_string(),
+        credentials,
+        on_stderr_line,
+    )?;
+    let out = format!("{}{}", run.stdout, run.stderr);
+    Ok(RestoreOutcome {
+        success: run.success(),
+        refused_existing: !run.success() && dest_refusal(&out),
+        final_dest: final_dest.display().to_string(),
+        stderr: run.stderr,
+    })
+}
+
 /// Low-level runner: spawn duplicity with `args`, capture output, inject
 /// credentials via environment only.
 pub fn run_duplicity(

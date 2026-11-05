@@ -168,6 +168,22 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .linklike:hover { text-decoration: underline; }
 
+/* Restore bar */
+.restore-bar {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.restore-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.restore-line .rlabel { font-weight: 600; }
+.restore-line code { background: #eef3f6; border-radius: 4px; padding: 2px 6px; }
+.restore-line input { flex: 1; min-width: 220px; margin-top: 0; }
+
 /* Log view */
 .banner {
   display: flex;
