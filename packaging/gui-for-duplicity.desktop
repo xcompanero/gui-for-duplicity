@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=GUI For Duplicity
+GenericName=Backup Manager
+Comment=Desktop front end for the Duplicity backup program
+Exec=gui-for-duplicity
+Icon=gui-for-duplicity
+Categories=Utility;Archiving;System;FileTools;
+Keywords=backup;duplicity;restore;archive;
+StartupNotify=true
+Terminal=false

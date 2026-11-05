@@ -6,3 +6,8 @@ members = ["crates/engine", "crates/cli", "app/src-tauri"]
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
+codegen-units = 1
