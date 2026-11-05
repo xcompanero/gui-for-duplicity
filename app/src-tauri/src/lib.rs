@@ -103,12 +103,13 @@ fn start_backup(
     let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
     let args = profile.backup_args();
 
-    let creds = Credentials {
-        passphrase: passphrase.as_deref(),
-        ..Default::default()
-    };
-
     std::thread::spawn(move || {
+        // Credentials must be constructed inside the thread: they borrow the
+        // owned passphrase string, which we move in here.
+        let creds = Credentials {
+            passphrase: passphrase.as_deref(),
+            ..Default::default()
+        };
         let app_for_log = app.clone();
         let listener = move |line: &str| {
             let _ = app_for_log.emit(
