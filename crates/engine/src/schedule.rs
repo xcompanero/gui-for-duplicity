@@ -84,11 +84,38 @@ pub fn timer_path(profile_name: &str) -> Result<PathBuf> {
     Ok(user_units_dir()?.join(format!("{}.timer", unit_stem(profile_name))))
 }
 
+/// Validate a systemd OnCalendar expression using systemd-analyze.
+/// Returns the parsed expansion on success; a helpful error on failure.
+pub fn validate_calendar(spec: &str) -> Result<String> {
+    if spec.trim().is_empty() {
+        bail!("empty calendar expression");
+    }
+    let out = Command::new("systemd-analyze")
+        .arg("calendar")
+        .arg(spec)
+        .output()
+        .context("running systemd-analyze calendar")?;
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    if !out.status.success() {
+        bail!(
+            "{err}\nExamples of valid OnCalendar expressions: daily · weekly · hourly · \
+             2026-*-* 04:00:00 · *:0/15 (every 15 minutes). \
+             Note: this is systemd OnCalendar syntax, not the retention syntax (1h, 6M…).",
+            err = if stderr.trim().is_empty() { stdout.trim() } else { stderr.trim() }
+        );
+    }
+    Ok(stdout)
+}
+
 /// Write (or refresh) the service+timer units for a profile.
 pub fn write_units(profile: &Profile) -> Result<()> {
     if profile.read_only {
         bail!("'{}' is restore-only; scheduling is disabled", profile.name);
     }
+    // Refuse invalid calendars here as well as at the front-end — never
+    // leave a broken timer unit behind for systemd to grumble about.
+    validate_calendar(&profile.schedule)?;
     let dir = user_units_dir()?;
     std::fs::create_dir_all(&dir)?;
 
