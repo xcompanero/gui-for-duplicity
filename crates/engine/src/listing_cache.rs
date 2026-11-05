@@ -65,10 +65,11 @@ pub fn current_chain_end(target: &str, creds: &Credentials<'_>) -> Result<Option
         .max())
 }
 
-/// Read the cached listing for `target` (default time) without any network
-/// activity. Returns the listing and the chain-end state it was cached for.
-pub fn get_cached(target: &str) -> Option<(FileListing, Option<DateTime<Local>>)> {
-    let path = cache_path(target, None);
+/// Read a cached listing (default or historical) without any network
+/// activity. Returns the listing and the chain-end state it was cached for
+/// (None for historical listings — they are immutable).
+pub fn get_cached(target: &str, time: Option<&str>) -> Option<(FileListing, Option<DateTime<Local>>)> {
+    let path = cache_path(target, time);
     let text = std::fs::read_to_string(&path).ok()?;
     let cached: CachedListing = serde_json::from_str(&text).ok()?;
     Some((cached.listing, cached.chain_end_time))
@@ -82,22 +83,34 @@ pub fn store(target: &str, listing: FileListing) -> Result<()> {
     write_entry(target, None, now_end, listing)
 }
 
-/// Get the file listing for `target`, from cache when the chain hasn't
-/// changed, otherwise from duplicity (then cached). Returns the listing and
-/// whether it came from cache.
+/// Get the file listing for `target` — from cache when possible, otherwise
+/// from duplicity (then cached).
+///
+/// Two regimes:
+/// - `time: None` ("now"): the listing changes whenever a new backup lands,
+///   so the cache is validated against the target's current chain-end time
+///   (cheap status; run in the background by the GUI).
+/// - `time: Some(t)`: the past is immutable — a listing at time *t* never
+///   changes, so its cache entry is permanent and needs no freshness check.
 pub fn get_or_fetch(
     target: &str,
     time: Option<&str>,
     creds: &Credentials<'_>,
     on_stderr_line: Option<&dyn Fn(&str)>,
 ) -> Result<(FileListing, bool)> {
-    if time.is_some() {
-        // Historical listings are not cached (each --time is a different view).
-        let listing = runner::list_current_files(target, time, creds, on_stderr_line)?;
+    let path = cache_path(target, time);
+
+    if let Some(t) = time {
+        // Immutable historical view: cache hit is always valid.
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            if let Ok(cached) = serde_json::from_str::<CachedListing>(&text) {
+                return Ok((cached.listing, true));
+            }
+        }
+        let listing = runner::list_current_files(target, Some(t), creds, on_stderr_line)?;
+        write_entry(target, time, None, listing.clone())?;
         return Ok((listing, false));
     }
-
-    let path = cache_path(target, None);
 
     // Fast path: cheap status check, then compare with the cached state.
     let now_end = current_chain_end(target, creds)?;

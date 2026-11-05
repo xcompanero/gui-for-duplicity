@@ -165,6 +165,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 #file-list .frow.dir { cursor: pointer; font-weight: 600; }
 #file-list .frow .fdate { color: var(--muted); min-width: 170px; }
 #file-list .frow .ficon { width: 18px; text-align: center; }
+.setbrowse {
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 11px;
+  border-radius: 4px;
+}
 .linklike {
   background: none; border: none; padding: 0;
   color: var(--accent-dark); font: inherit; font-weight: 600;

@@ -155,15 +155,25 @@ struct BrowseResult {
 fn browse_files(
     app: AppHandle,
     target: String,
+    time: Option<String>,
     passphrase: Option<String>,
     force_refresh: Option<bool>,
 ) -> Result<BrowseResult, String> {
     let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
 
-    // Instant path: serve the cached index without any network activity,
-    // then check freshness in the background.
+    // Instant path: serve the cached index without any network activity.
+    // Historical views are immutable; only "now" needs a freshness check.
     if !force_refresh.unwrap_or(false) {
-        if let Some((listing, cached_end)) = engine::listing_cache::get_cached(&target) {
+        if let Some((listing, cached_end)) =
+            engine::listing_cache::get_cached(&target, time.as_deref())
+        {
+            if time.is_some() {
+                return Ok(BrowseResult {
+                    listing,
+                    from_cache: true,
+                    freshness_check_running: false,
+                });
+            }
             let creds_bg = creds.clone();
             let app_bg = app.clone();
             let target_bg = target.clone();
@@ -191,7 +201,7 @@ fn browse_files(
 
     // Slow path: real duplicity run (can take minutes to hours on big
     // targets), then cache the parse.
-    engine::listing_cache::get_or_fetch(&target, None, &creds, None)
+    engine::listing_cache::get_or_fetch(&target, time.as_deref(), &creds, None)
         .map(|(listing, from_cache)| BrowseResult {
             listing,
             from_cache,

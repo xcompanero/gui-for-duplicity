@@ -197,7 +197,10 @@ function renderStatus(report) {
       : '<span class="secondary-badge">secondary</span>';
     const fmt = (t) => (t ? new Date(t).toLocaleString() : "?");
     const sets = chain.sets
-      .map((s) => `<div>${s.kind}: ${fmt(s.time)}${s.volumes != null ? ` (${s.volumes} volumes)` : ""}</div>`)
+      .map(
+        (s) => `<div>${s.kind}: ${fmt(s.time)}${s.volumes != null ? ` (${s.volumes} volumes)` : ""}
+          <button class="setbrowse" data-time="${s.time || ""}" title="Browse the files as of this moment">⌛ browse as of…</button></div>`,
+      )
       .join("");
     div.innerHTML = `
       <h3>Chain ${i + 1}${badge}</h3>
@@ -211,12 +214,19 @@ function renderStatus(report) {
     box.appendChild(div);
   }
   for (const btn of box.querySelectorAll(".browse-btn")) {
-    btn.onclick = () => openBrowserForChain($("#status-target").textContent);
+    btn.onclick = () => openBrowserForChain($("#status-target").textContent, null);
+  }
+  for (const btn of box.querySelectorAll(".setbrowse")) {
+    btn.onclick = () => {
+      if (!btn.dataset.time) return;
+      openBrowserForChain($("#status-target").textContent, btn.dataset.time);
+    };
   }
 }
 
 // ---------- file browser ----------
 let browseTarget = null;
+let browseTime = null; // null = current state; ISO string = historical snapshot
 let browseListing = null;
 let browseDirPrefix = null; // Path prefix currently "entered", or null = root
 
@@ -307,21 +317,29 @@ function renderFileBrowser() {
   }
 }
 
-async function openBrowserForChain(target) {
+async function openBrowserForChain(target, time) {
   browseTarget = target;
+  browseTime = time;
   browseDirPrefix = null;
   $("#file-filter").value = "";
   $("#stale-banner").hidden = true;
-  $("#files-meta").textContent = `${target} — at: /`;
+  const asOf = time ? ` as of ${time.replace("T", " ")}` : " (current)";
+  $("#files-meta").textContent = `${target}${asOf} — at: /`;
   $("#file-count").textContent = "";
-  $("#file-list").innerHTML =
-    '<div class="frow"><span>Loading cached file index…</span></div>';
+  $("#file-list").innerHTML = time
+    ? '<div class="frow"><span>Building the historical index — this can take many minutes the first time for each date. The good news: a past state never changes, so this view is cached permanently afterwards…</span></div>'
+    : '<div class="frow"><span>Loading cached file index…</span></div>';
   showView("files");
   try {
-    const res = await invoke("browse_files", { target, passphrase: null, forceRefresh: false });
+    const res = await invoke("browse_files", {
+      target,
+      time,
+      passphrase: null,
+      forceRefresh: false,
+    });
     browseListing = res.listing;
     $("#files-meta").textContent =
-      `${target} — at: / ${res.from_cache ? "(from cache)" : "(freshly parsed)"}`;
+      `${target}${asOf} — at: / ${res.from_cache ? "(from cache)" : "(freshly parsed)"}`;
     if (res.freshness_check_running) {
       $("#files-meta").textContent += " — checking for newer backups in background…";
     }
@@ -440,9 +458,10 @@ $("#btn-do-restore").onclick = async () => {
   const home = await invoke("home_dir");
   const intoHome = dest === home || dest.startsWith(`${home}/`);
   const originalSpot = (`${home}/${path}` === `${dest}/${path.split("/").pop()}`);
+  const asOf = browseTime ? `\nAs of:    ${browseTime.replace("T", " ")}` : "";
   const lines = [
     `Restore:  ${path}`,
-    `From:     ${browseTarget}`,
+    `From:     ${browseTarget}${asOf}`,
     `Into:     ${dest}/${path.split("/").pop()}`,
     "",
     "Existing files are never overwritten — duplicity refuses.",
@@ -461,7 +480,7 @@ $("#btn-do-restore").onclick = async () => {
     activeJobId = await invoke("start_restore", {
       target: browseTarget,
       path,
-      time: null,
+      time: browseTime,
       destDir: dest,
       passphrase: null,
     });
