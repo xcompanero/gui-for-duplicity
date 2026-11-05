@@ -314,16 +314,31 @@ $("#file-filter").addEventListener("input", renderFileBrowser);
 $("#btn-backup").onclick = async () => {
   const p = readForm();
   if (!p.name) return flashError("Save the profile first (it needs a name)");
+  await runBackup(p.name, false);
+};
+
+async function runBackup(name, forceNewChain) {
   try {
-    activeJobId = await invoke("start_backup", { name: p.name, passphrase: null });
+    activeJobId = await invoke("start_backup", {
+      name,
+      passphrase: null,
+      forceNewChain,
+    });
     $("#log").textContent = "";
-    $("#log-job").textContent = `job #${activeJobId} — profile "${p.name}"`;
+    $("#log-job").textContent = `job #${activeJobId} — profile "${name}"${forceNewChain ? " (new chain)" : ""}`;
     $("#log-status").textContent = "Running…";
     showView("log");
   } catch (e) {
-    flashError(String(e));
+    const msg = String(e);
+    if (msg.includes("start a new chain")) {
+      if (confirm(msg + "\n\nStart a new chain now? (A full backup will run; the old chain stays until you prune it.)")) {
+        await runBackup(name, true);
+      }
+    } else {
+      flashError(msg);
+    }
   }
-};
+}
 
 // ---------- boot ----------
 (async () => {

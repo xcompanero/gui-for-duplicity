@@ -161,10 +161,28 @@ fn start_backup(
     state: State<'_, AppState>,
     name: String,
     passphrase: Option<String>,
+    force_new_chain: Option<bool>,
 ) -> Result<u64, String> {
     let profile = Profile::load_default(&name).map_err(err_msg)?;
     let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
-    let args = profile.backup_args();
+
+    // Encryption changes are only safe at the start of a new chain.
+    if let Some(last) = profile.last_backup_encrypt {
+        if last != profile.encrypt && !force_new_chain.unwrap_or(false) {
+            return Err(format!(
+                "The encryption setting for '{}' changed since the last backup \
+                 (target chain was created with encryption {}). \
+                 An incremental cannot cross that boundary safely — start a new chain instead.",
+                profile.name,
+                if last { "ON" } else { "OFF" }
+            ));
+        }
+    }
+
+    let force_full = force_new_chain.unwrap_or(false);
+    let args = profile.backup_args(force_full);
+    let profile_name = profile.name.clone();
+    let now_encrypted = profile.encrypt;
     // 'static credentials (KWallet lookup / leaked owned string) move freely
     // into the job thread.
     let creds = resolve_credentials(&profile.target, passphrase.as_deref()).map_err(err_msg)?;
@@ -191,14 +209,24 @@ fn start_backup(
         };
         let result = runner::run_duplicity(&args, &creds, Some(&listener));
         let _ = match result {
-            Ok(run) => app.emit(
-                "job-done",
-                JobDone {
-                    job_id,
-                    ok: run.success(),
-                    exit_code: run.exit_status.code(),
-                },
-            ),
+            Ok(run) => {
+                // Record the chain's encryption state so future setting
+                // changes are caught before they can corrupt anything.
+                if run.success() {
+                    if let Ok(mut p) = Profile::load_default(&profile_name) {
+                        p.last_backup_encrypt = Some(now_encrypted);
+                        let _ = p.save_default();
+                    }
+                }
+                app.emit(
+                    "job-done",
+                    JobDone {
+                        job_id,
+                        ok: run.success(),
+                        exit_code: run.exit_status.code(),
+                    },
+                )
+            }
             Err(e) => app.emit(
                 "job-done",
                 JobDone { job_id, ok: false, exit_code: None },

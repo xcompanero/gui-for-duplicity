@@ -113,28 +113,57 @@ pub fn parse(text: &str) -> Result<FileListing> {
             continue;
         }
 
-        // Entry line: "Thu Nov  5 12:44:18 2026 <path>"
-        // Date is exactly 5 whitespace-separated tokens; the path is the rest
-        // (paths may themselves contain spaces).
-        let tokens: Vec<&str> = trimmed.split_whitespace().collect();
-        if tokens.len() >= 6 {
-            if let Ok(mtime) = parse_date(&tokens[..5].join(" ")) {
-                let path = tokens[5..].join(" ");
-                listing.entries.push(FileEntry {
-                    path: PathBuf::from(path),
-                    mtime,
-                });
-                continue;
+        // Our CLI prints entries as "dir <date> <path>" / "file <date> <path>"
+        // so its output is self-round-trippable; strip that optional marker.
+        let mut work = trimmed;
+        if let Some(rest) = work.strip_prefix("dir ") {
+            work = rest.trim_start();
+        } else if let Some(rest) = work.strip_prefix("file ") {
+            work = rest.trim_start();
+        }
+
+        // Entry line, in either of two date dialects:
+        //   duplicity raw:   "Thu Nov  5 12:44:18 2026 <path>"   (5-token date)
+        //   our CLI output:  "dir 2025-07-03 17:39:20 +01:00 <path>" (3-token ISO date)
+        // The path is the rest (paths may themselves contain spaces).
+        let tokens: Vec<&str> = work.split_whitespace().collect();
+        let parsed = if tokens.len() >= 6 {
+            parse_date(&tokens[..5].join(" ")).ok().map(|mtime| {
+                (mtime, tokens[5..].join(" "))
+            })
+        } else {
+            None
+        }
+        .or_else(|| {
+            if tokens.len() >= 4 {
+                parse_date(&tokens[..3].join(" ")).ok().map(|mtime| {
+                    (mtime, tokens[3..].join(" "))
+                })
+            } else {
+                None
             }
+        });
+
+        if let Some((mtime, path)) = parsed {
+            listing.entries.push(FileEntry {
+                path: PathBuf::from(path),
+                mtime,
+            });
+            continue;
         }
         listing.unparsed.push(trimmed.to_string());
     }
     Ok(listing)
 }
 
-/// Parse a duplicity timestamp like `Thu Nov  5 12:44:18 2026`.
+/// Parse a duplicity timestamp like `Thu Nov  5 12:44:18 2026`, or our CLI's
+/// ISO rendering like `2025-07-03 17:39:20 +01:00`.
 fn parse_date(s: &str) -> Result<DateTime<Local>> {
     let normalised = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    // ISO with explicit offset first.
+    if let Ok(fixed) = chrono::DateTime::parse_from_str(&normalised, "%Y-%m-%d %H:%M:%S %z") {
+        return Ok(fixed.with_timezone(&Local));
+    }
     let naive = NaiveDateTime::parse_from_str(&normalised, "%a %b %e %H:%M:%S %Y")
         .with_context(|| format!("parsing duplicity date {s:?}"))?;
     let parsed = Local
@@ -188,5 +217,16 @@ mod tests {
         let listing = parse("nonsense line\n").unwrap();
         assert!(listing.entries.is_empty());
         assert_eq!(listing.unparsed.len(), 1);
+    }
+
+    #[test]
+    fn accepts_cli_rendered_lines() {
+        let listing = parse(
+            "dir   2025-07-03 17:39:20 +01:00  sub\nfile  2025-07-03 17:39:20 +01:00  a.txt\n",
+        )
+        .unwrap();
+        assert_eq!(listing.entries.len(), 2);
+        assert_eq!(listing.entries[1].path, std::path::Path::new("a.txt"));
+        assert!(listing.unparsed.is_empty());
     }
 }

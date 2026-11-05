@@ -63,6 +63,14 @@ fn current_chain_end(target: &str, creds: &Credentials<'_>) -> Result<Option<Dat
         .max())
 }
 
+/// Store an externally-parsed listing for `target` (fetching the current
+/// chain-end state for the invalidation key). Used by the CLI's `seed-cache`
+/// subcommand to turn a captured listing into a warm cache.
+pub fn store(target: &str, listing: FileListing) -> Result<()> {
+    let now_end = current_chain_end(target, &Credentials::new())?;
+    write_entry(target, None, now_end, listing)
+}
+
 /// Get the file listing for `target`, from cache when the chain hasn't
 /// changed, otherwise from duplicity (then cached). Returns the listing and
 /// whether it came from cache.
@@ -78,7 +86,7 @@ pub fn get_or_fetch(
         return Ok((listing, false));
     }
 
-    let path = cache_path(target, time);
+    let path = cache_path(target, None);
 
     // Fast path: cheap status check, then compare with the cached state.
     let now_end = current_chain_end(target, creds)?;
@@ -91,19 +99,30 @@ pub fn get_or_fetch(
     }
 
     // Slow path: real duplicity run, then cache the parse.
-    let listing = runner::list_current_files(target, time, creds, on_stderr_line)?;
+    let listing = runner::list_current_files(target, None, creds, on_stderr_line)?;
+    write_entry(target, None, now_end, listing.clone())?;
+    Ok((listing, false))
+}
+
+fn write_entry(
+    target: &str,
+    time: Option<&str>,
+    chain_end_time: Option<DateTime<Local>>,
+    listing: FileListing,
+) -> Result<()> {
     let entry = CachedListing {
-        chain_end_time: now_end,
+        chain_end_time,
         cached_at: Utc::now(),
-        listing: listing.clone(),
+        listing,
     };
+    let path = cache_path(target, time);
     let dir = cache_dir();
     std::fs::create_dir_all(&dir)?;
     let tmp = path.with_extension("json.tmp");
     std::fs::write(&tmp, serde_json::to_string(&entry)?)
         .with_context(|| format!("writing listing cache {}", tmp.display()))?;
     std::fs::rename(&tmp, &path)?;
-    Ok((listing, false))
+    Ok(())
 }
 
 #[cfg(test)]

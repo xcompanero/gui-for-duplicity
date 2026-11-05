@@ -29,6 +29,7 @@ fn main() -> Result<()> {
         "files" => cmd_files(rest),
         "verify" => cmd_verify(rest),
         "restore" => cmd_restore(rest),
+        "seed-cache" => cmd_seed_cache(rest),
         _ => {
             bail!("usage: engine-cli status <target-url> [--passphrase <s>] [--backend-password <s>]\n       engine-cli files <target-url> [--time <t>] [--live] [--dup-verbosity info]\n       engine-cli verify <target-url> <local-path> [--time <t>] [--no-compare-data] [--live]\n       engine-cli restore <target-url> <dest-dir> [--file <path>] [--time <t>] [--live]\n       (secrets may be given via ENGINE_PASSPHRASE / ENGINE_BACKEND_PASSWORD;\n        --live streams duplicity's messages as they happen)\n       engine-cli version");
         }
@@ -142,6 +143,27 @@ impl Opts {
         }
         Ok((&self.positional[0], &self.positional[1]))
     }
+}
+
+/// Seed the parsed-listing cache from a captured `engine-cli files` output
+/// file, sparing a full (possibly hour-long) duplicity re-parse.
+fn cmd_seed_cache(args: Vec<String>) -> Result<()> {
+    if args.len() != 2 {
+        bail!("usage: engine-cli seed-cache <target-url> <capture-file>");
+    }
+    let target = &args[0];
+    let text = std::fs::read_to_string(&args[1])
+        .with_context(|| format!("reading capture file {}", args[1]))?;
+    let listing = engine::files::parse(&text)?;
+    println!(
+        "Parsed {} entries ({} unrecognised lines ignored) from {}",
+        listing.entries.len(),
+        listing.unparsed.len(),
+        args[1]
+    );
+    engine::listing_cache::store(target, listing)?;
+    println!("Listing cache seeded for {target}");
+    Ok(())
 }
 
 fn cmd_status(args: Vec<String>) -> Result<()> {

@@ -42,6 +42,11 @@ pub struct Profile {
     /// field existed are treated as encrypted.
     #[serde(default = "default_true")]
     pub encrypt: bool,
+    /// Encryption state of the target's chain at the last successful backup,
+    /// recorded so that changing `encrypt` mid-chain can be caught (a switch
+    /// requires starting a new chain, not an incremental).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_backup_encrypt: Option<bool>,
 }
 
 fn default_true() -> bool {
@@ -113,10 +118,11 @@ impl Profile {
         Ok(())
     }
 
-    /// Build the argument list for a `duplicity backup` run (without the
-    /// leading `duplicity` program name). Passphrases are NEVER placed here —
-    /// they travel via the process environment, see [`crate::runner`].
-    pub fn backup_args(&self) -> Vec<String> {
+    /// Build the argument list for a `duplicity backup` (or a forced new
+    /// full chain when `force_full`) — without the leading `duplicity`
+    /// program name. Passphrases are NEVER placed here — they travel via
+    /// the process environment, see [`crate::runner`].
+    pub fn backup_args(&self, force_full: bool) -> Vec<String> {
         let mut args = Vec::new();
         for inc in &self.includes {
             args.push("--include".into());
@@ -132,7 +138,11 @@ impl Profile {
         args.extend(self.gpg_options.iter().cloned());
         args.extend(self.extra_options.iter().cloned());
         // duplicity takes sources then target, sources last.
-        args.push("backup".into());
+        if force_full {
+            args.push("full".into());
+        } else {
+            args.push("backup".into());
+        }
         for src in &self.sources {
             args.push(src.display().to_string());
         }
@@ -157,13 +167,14 @@ mod tests {
             gpg_options: vec![],
             retention: "6M".into(),
             encrypt: true,
+            last_backup_encrypt: None,
         };
         let text = toml::to_string_pretty(&profile).unwrap();
         let back: Profile = toml::from_str(&text).unwrap();
         assert_eq!(back.name, "home-docs");
         assert_eq!(back.retention, "6M");
         assert!(back.encrypt);
-        assert_eq!(back.backup_args().last().unwrap(), "file:///mnt/backup/dup");
+        assert_eq!(back.backup_args(false).last().unwrap(), "file:///mnt/backup/dup");
     }
 
     #[test]
@@ -178,9 +189,15 @@ mod tests {
             gpg_options: vec![],
             retention: String::new(),
             encrypt: false,
+            last_backup_encrypt: None,
         };
-        let args = profile.backup_args();
+        let args = profile.backup_args(false);
         assert!(args.contains(&"--no-encryption".to_string()));
+        assert_eq!(args[args.len() - 3], "backup");
+
+        // Forced new chain uses the "full" action instead.
+        let full = profile.backup_args(true);
+        assert_eq!(full[full.len() - 3], "full");
 
         // And the TOML default for a legacy file without the field is
         // *encrypted* (secure default):
@@ -201,8 +218,9 @@ mod tests {
             gpg_options: vec![],
             retention: String::new(),
             encrypt: true,
+            last_backup_encrypt: None,
         };
-        let args = profile.backup_args();
+        let args = profile.backup_args(false);
         assert_eq!(&args[0..3], &["--exclude", "**/tmp/**", "backup"]);
         assert_eq!(&args[3..5], &["/a", "/b"]);
         assert_eq!(args[5], "file:///x");
