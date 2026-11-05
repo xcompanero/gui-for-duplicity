@@ -46,6 +46,8 @@ struct Opts {
     live: bool,
     /// Verbosity level passed through to duplicity (--verbosity).
     dup_verbosity: Option<String>,
+    /// Raw duplicity argument passthrough, one item per --dup-arg.
+    dup_args: Vec<String>,
     flags: Vec<String>,
 }
 
@@ -54,8 +56,10 @@ impl Opts {
     fn engine_credentials(&self) -> engine::runner::Credentials<'_> {
         let mut creds = self.credentials();
         if let Some(v) = &self.dup_verbosity {
-            creds.extra_args = vec!["--verbosity".into(), v.clone()];
+            creds.extra_args.push("--verbosity".into());
+            creds.extra_args.push(v.clone());
         }
+        creds.extra_args.extend(self.dup_args.iter().cloned());
         creds
     }
 
@@ -78,6 +82,7 @@ fn parse_opts(args: Vec<String>) -> Result<Opts> {
         file: None,
         live: false,
         dup_verbosity: None,
+        dup_args: Vec::new(),
         flags: Vec::new(),
     };
     let mut it = args.into_iter();
@@ -91,6 +96,12 @@ fn parse_opts(args: Vec<String>) -> Result<Opts> {
             }
             "--dup-verbosity" => {
                 o.dup_verbosity = Some(it.next().context("--dup-verbosity needs a value")?)
+            }
+            "--dup-arg" => {
+                // Generic passthrough for one duplicity option or value,
+                // e.g. --dup-arg --ssh-backend --dup-arg pexpect
+                o.dup_args
+                    .push(it.next().context("--dup-arg needs a value")?);
             }
             "--live" => o.live = true,
             "--no-compare-data" => o.flags.push(arg),
