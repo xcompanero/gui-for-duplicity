@@ -39,19 +39,36 @@ fn which_duplicity() -> Option<std::path::PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// Run `duplicity collection-status <target>` and parse its output.
+/// Credential/env handling for a duplicity run.
 ///
-/// `passphrase` (if the target is passphrase-encrypted and gpg-agent is not
-/// caching the key) is injected into the child's environment only.
+/// Ground rules: secrets NEVER appear on the command line. Duplicity reads:
+/// - `PASSPHRASE`   — the GPG passphrase for encrypted targets
+/// - `BACKEND_PASSWORD` — login password for remote backends (ftp, etc.);
+///   duplicity 3.x's preferred generic mechanism (FTP_PASSWORD is deprecated)
+#[derive(Debug, Default, Clone)]
+pub struct Credentials<'a> {
+    /// GPG passphrase for the backup data.
+    pub passphrase: Option<&'a str>,
+    /// Login password for the remote backend.
+    pub backend_password: Option<&'a str>,
+    /// Any other environment variables to inject for this run.
+    pub extra_env: Vec<(String, String)>,
+}
+
+impl Credentials<'_> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Run `duplicity collection-status <target>` and parse its output.
 pub fn collection_status(
     target: &str,
-    passphrase: Option<&str>,
-    extra_env: &[(&str, &str)],
+    credentials: &Credentials<'_>,
 ) -> Result<crate::collection::CollectionReport> {
     let run = run_duplicity(
         &["collection-status".to_string(), target.to_string()],
-        passphrase,
-        extra_env,
+        credentials,
     )?;
     if !run.success() {
         anyhow::bail!(
@@ -64,26 +81,23 @@ pub fn collection_status(
 }
 
 /// Low-level runner: spawn duplicity with `args`, capture output, inject
-/// optional passphrase via environment.
-pub fn run_duplicity(
-    args: &[String],
-    passphrase: Option<&str>,
-    extra_env: &[(&str, &str)],
-) -> Result<DuplicityRun> {
+/// credentials via environment only.
+pub fn run_duplicity(args: &[String], credentials: &Credentials<'_>) -> Result<DuplicityRun> {
     let duplicity = duplicity_path()?;
     let mut cmd = Command::new(&duplicity);
     cmd.args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    // stdin is null, so an interactive passphrase prompt would fail fast
-    // rather than hang — pass one via `passphrase` or let gpg-agent supply it.
-    if let Some(pass) = passphrase {
+    if let Some(pass) = credentials.passphrase {
         cmd.env("PASSPHRASE", pass);
     } else {
         cmd.env_remove("PASSPHRASE");
     }
-    for (k, v) in extra_env {
+    if let Some(pass) = credentials.backend_password {
+        cmd.env("BACKEND_PASSWORD", pass);
+    }
+    for (k, v) in &credentials.extra_env {
         cmd.env(k, v);
     }
 

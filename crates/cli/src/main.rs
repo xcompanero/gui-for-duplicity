@@ -26,7 +26,7 @@ fn main() -> Result<()> {
         }
         "status" => cmd_status(args.collect()),
         _ => {
-            bail!("usage: engine-cli status <target-url> [--passphrase <secret>]\n       engine-cli version");
+            bail!("usage: engine-cli status <target-url> [--passphrase <secret>] [--backend-password <secret>]\n       (or set ENGINE_PASSPHRASE / ENGINE_BACKEND_PASSWORD in the environment)\n       engine-cli version");
         }
     }
 }
@@ -34,10 +34,14 @@ fn main() -> Result<()> {
 fn cmd_status(args: Vec<String>) -> Result<()> {
     let mut target: Option<String> = None;
     let mut passphrase: Option<String> = None;
+    let mut backend_password: Option<String> = None;
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--passphrase" => passphrase = Some(it.next().context("--passphrase needs a value")?),
+            "--backend-password" => {
+                backend_password = Some(it.next().context("--backend-password needs a value")?)
+            }
             _ => {
                 if target.is_some() {
                     bail!("unexpected extra argument: {arg}");
@@ -48,7 +52,18 @@ fn cmd_status(args: Vec<String>) -> Result<()> {
     }
     let target = target.context("no target URL given (e.g. file:///mnt/backup/dup)")?;
 
-    let report = engine::runner::collection_status(&target, passphrase.as_deref(), &[])?;
+    // Secrets may also arrive via the environment so they never sit in shell
+    // history. Command-line flags win if both are given.
+    let passphrase = passphrase.or_else(|| std::env::var("ENGINE_PASSPHRASE").ok());
+    let backend_password =
+        backend_password.or_else(|| std::env::var("ENGINE_BACKEND_PASSWORD").ok());
+
+    let credentials = engine::runner::Credentials {
+        passphrase: passphrase.as_deref(),
+        backend_password: backend_password.as_deref(),
+        ..Default::default()
+    };
+    let report = engine::runner::collection_status(&target, &credentials)?;
 
     println!("Target:            {target}");
     match report.last_full_backup {
