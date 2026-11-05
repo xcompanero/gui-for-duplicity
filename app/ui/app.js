@@ -490,6 +490,28 @@ $("#btn-remove-schedule").onclick = async () => {
   }
 };
 
+// ---------- retention ----------
+$("#btn-retention-preview").onclick = async () => {
+  const p = readForm();
+  const el = $("#schedule-status");
+  if (!p.target) return flashError("A target URL is required");
+  if (!p.retention) return flashError("Set a retention period first (e.g. 6M)");
+  el.textContent = "Running retention dry-run…";
+  try {
+    const lines = await invoke("retention_preview", { target: p.target, retention: p.retention });
+    el.textContent = lines.length === 0
+      ? "Dry run: nothing to remove — everything is within retention."
+      : `Dry run: ${lines.length} line(s) reported. Nothing was deleted:\n` +
+        (lines.length > 20
+          ? lines.slice(0, 20).join("\n") + `\n… and ${lines.length - 20} more`
+          : lines.join("\n"));
+    el.className = "msg";
+  } catch (e) {
+    el.textContent = String(e);
+    el.className = "msg error";
+  }
+};
+
 // ---------- verify ----------
 $("#btn-verify").onclick = async () => {
   const p = readForm();

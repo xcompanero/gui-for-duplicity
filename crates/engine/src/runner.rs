@@ -265,6 +265,39 @@ pub fn restore_into_dir(
     })
 }
 
+/// Run `duplicity remove-older-than <retention> [--force] <target>`.
+/// Without `force` this is a dry run listing what would be removed.
+pub fn remove_older_than(
+    target: &str,
+    retention: &str,
+    force: bool,
+    credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
+) -> Result<DuplicityRun> {
+    let mut args = vec!["remove-older-than".to_string(), retention.to_string()];
+    if force {
+        args.push("--force".into());
+    }
+    args.push(target.to_string());
+    run_duplicity(&args, credentials, on_stderr_line)
+}
+
+/// Run `duplicity cleanup [--force] <target>` — removes orphaned and
+/// incomplete backup sets.
+pub fn cleanup(
+    target: &str,
+    force: bool,
+    credentials: &Credentials<'_>,
+    on_stderr_line: Option<&dyn Fn(&str)>,
+) -> Result<DuplicityRun> {
+    let mut args = vec!["cleanup".to_string()];
+    if force {
+        args.push("--force".into());
+    }
+    args.push(target.to_string());
+    run_duplicity(&args, credentials, on_stderr_line)
+}
+
 /// Low-level runner: spawn duplicity with `args`, capture output, inject
 /// credentials via environment only.
 pub fn run_duplicity(

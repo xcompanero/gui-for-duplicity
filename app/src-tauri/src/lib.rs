@@ -449,9 +449,37 @@ fn set_schedule(name: String, calendar: Option<String>) -> Result<engine::schedu
     engine::schedule::status(&profile).map_err(err_msg)
 }
 
+/// Dry-run retention: list what `remove-older-than` would delete, without
+/// deleting anything.
 #[tauri::command]
-fn home_dir() -> String {
-    std::env::var("HOME").unwrap_or_default()
+fn retention_preview(
+    target: String,
+    retention: String,
+    passphrase: Option<String>,
+) -> Result<Vec<String>, String> {
+    if retention.trim().is_empty() {
+        return Err("No retention period is set on this profile".to_string());
+    }
+    let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
+    let run = engine::runner::remove_older_than(&target, retention.trim(), false, &creds, None)
+        .map_err(err_msg)?;
+    if !run.success() {
+        return Err(format!(
+            "retention dry-run failed: {}",
+            run.stderr.trim()
+        ));
+    }
+    Ok(run
+        .stdout
+        .lines()
+        .chain(run.stderr.lines())
+        .map(|s| s.to_string())
+        .filter(|l| !l.trim().is_empty())
+        .collect())
+}
+
+#[tauri::command]
+fn home_dir() -> String {    std::env::var("HOME").unwrap_or_default()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -475,6 +503,7 @@ pub fn run() {
             start_verify,
             get_schedule,
             set_schedule,
+            retention_preview,
             home_dir,
             open_path,
         ])

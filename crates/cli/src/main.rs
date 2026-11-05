@@ -210,14 +210,10 @@ fn cmd_backup(args: Vec<String>) -> Result<()> {
 
     let prepared = engine::jobs::prepare_backup(&name, force_new_chain)?;
     let started = std::time::Instant::now();
-    let live = {
-        use std::io::IsTerminal;
-        std::io::stderr().is_terminal()
-    };
+    // Always echo duplicity's lines to stderr: the journal captures them for
+    // scheduled runs, and interactive users see the live log as before.
     let listener = move |line: &str| {
-        if live {
-            eprintln!("[duplicity] {line}");
-        }
+        eprintln!("[duplicity] {line}");
     };
     let outcome = engine::jobs::run_backup(&prepared, Some(&listener))?;
     println!("{}", outcome.message);

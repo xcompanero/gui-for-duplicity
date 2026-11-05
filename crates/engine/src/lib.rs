@@ -13,6 +13,7 @@ pub mod collection;
 pub mod files;
 pub mod jobs;
 pub mod listing_cache;
+pub mod notify;
 pub mod profile;
 pub mod runner;
 pub mod schedule;

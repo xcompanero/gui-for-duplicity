@@ -31,9 +31,6 @@
           <textarea name="excludes" rows="3" placeholder="**/.cache/**"></textarea>
         </label>
         <div class="row">
-          <label>Retention (remove-older-than)
-            <input name="retention" placeholder="6M — empty = never prune" />
-          </label>
           <label>Extra duplicity options
             <input name="extra_options" placeholder="--volsize=500 …" />
           </label>
@@ -66,10 +63,16 @@
           <label>Schedule (systemd OnCalendar)
             <input name="schedule" placeholder="empty = manual only · e.g. daily · weekly · 2026-*-* 04:00:00" />
           </label>
+          <label>Retention (remove-older-than)
+            <input name="retention" placeholder="empty = keep forever · e.g. 6M · 1Y" />
+          </label>
+        </div>
+        <div class="row">
           <label>&nbsp;
             <div class="pass-actions">
               <button type="button" id="btn-set-schedule">Enable schedule</button>
               <button type="button" id="btn-remove-schedule" class="danger">Remove schedule</button>
+              <button type="button" id="btn-retention-preview">Preview retention (dry run)</button>
             </div>
           </label>
         </div>
