@@ -32,7 +32,7 @@ const KNOWN_INFO_PREFIXES: &[&str] = &[
 ];
 
 /// One entry in a snapshot's file listing.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FileEntry {
     /// Path relative to the backup root.
     pub path: PathBuf,
@@ -40,7 +40,7 @@ pub struct FileEntry {
 }
 
 /// The parsed result of a `list-current-files` run.
-#[derive(Debug, Clone, Default, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct FileListing {
     pub entries: Vec<FileEntry>,
     /// Lines the parser did not recognise, kept for debugging.

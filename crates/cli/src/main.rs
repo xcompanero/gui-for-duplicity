@@ -103,6 +103,7 @@ fn parse_opts(args: Vec<String>) -> Result<Opts> {
                 o.dup_args
                     .push(it.next().context("--dup-arg needs a value")?);
             }
+            "--no-cache" => o.flags.push(arg),
             "--live" => o.live = true,
             "--no-compare-data" => o.flags.push(arg),
             _ => o.positional.push(arg),
@@ -206,18 +207,35 @@ fn cmd_status(args: Vec<String>) -> Result<()> {
 fn cmd_files(args: Vec<String>) -> Result<()> {
     let o = parse_opts(args)?;
     let target = o.one_positional("target URL")?;
-    let listing = engine::runner::list_current_files(
-        target,
-        o.time.as_deref(),
-        &o.engine_credentials(),
-        o.stderr_listener(),
-    )?;
+    let use_cache = !o.flags.iter().any(|f| f == "--no-cache");
+    let (listing, from_cache) = if use_cache {
+        engine::listing_cache::get_or_fetch(
+            target,
+            o.time.as_deref(),
+            &o.engine_credentials(),
+            o.stderr_listener(),
+        )?
+    } else {
+        (
+            engine::runner::list_current_files(
+                target,
+                o.time.as_deref(),
+                &o.engine_credentials(),
+                o.stderr_listener(),
+            )?,
+            false,
+        )
+    };
 
     println!("Target: {target}");
     if let Some(t) = &o.time {
         println!("Time:   {t}");
     }
-    println!("Entries: {}", listing.entries.len());
+    println!(
+        "Entries: {} {}",
+        listing.entries.len(),
+        if from_cache { "(from cache)" } else { "" }
+    );
     println!();
     for entry in &listing.entries {
         let kind = if listing.is_directory(&entry.path) {
