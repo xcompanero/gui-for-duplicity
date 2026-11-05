@@ -1,0 +1,14 @@
+[package]
+name = "engine-cli"
+description = "Phase 0 test harness for the duplicity engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "engine-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+engine = { path = "../engine" }

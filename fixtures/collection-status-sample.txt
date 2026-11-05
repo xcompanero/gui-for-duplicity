@@ -1,0 +1,13 @@
+----------------- Backup source directory information -----------------
+Last full backup date: Sat Nov  1 04:00:00 2025
+Collection found in destination:
+    Chain: Backup chain (full: Sat Nov  1 04:00:00 2025)
+         Method: Full
+         Full: Sat Nov  1 04:00:00 2025
+         Inc: Sun Nov  2 04:00:00 2025
+         Inc: Mon Nov  3 04:00:00 2025
+         Inc: Tue Nov  4 04:00:00 2025
+    Chain: Backup chain (full: Sun Oct  5 04:00:00 2025)
+         Method: Full
+         Full: Sun Oct  5 04:00:00 2025
+No orphaned or incomplete backup sets found.
