@@ -37,6 +37,15 @@ pub struct Profile {
     /// (e.g. `6M`). Empty means "never prune automatically".
     #[serde(default)]
     pub retention: String,
+    /// Whether backup data is GPG-encrypted (a passphrase is then required).
+    /// Defaults to `true` — the secure default; profiles created before this
+    /// field existed are treated as encrypted.
+    #[serde(default = "default_true")]
+    pub encrypt: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Profile {
@@ -117,6 +126,9 @@ impl Profile {
             args.push("--exclude".into());
             args.push(exc.clone());
         }
+        if !self.encrypt {
+            args.push("--no-encryption".into());
+        }
         args.extend(self.gpg_options.iter().cloned());
         args.extend(self.extra_options.iter().cloned());
         // duplicity takes sources then target, sources last.
@@ -144,12 +156,37 @@ mod tests {
             extra_options: vec!["--volsize=500".into()],
             gpg_options: vec![],
             retention: "6M".into(),
+            encrypt: true,
         };
         let text = toml::to_string_pretty(&profile).unwrap();
         let back: Profile = toml::from_str(&text).unwrap();
         assert_eq!(back.name, "home-docs");
         assert_eq!(back.retention, "6M");
+        assert!(back.encrypt);
         assert_eq!(back.backup_args().last().unwrap(), "file:///mnt/backup/dup");
+    }
+
+    #[test]
+    fn unencrypted_profile_adds_no_encryption_flag() {
+        let profile = Profile {
+            name: "t".into(),
+            sources: vec![PathBuf::from("/a")],
+            target: "file:///x".into(),
+            excludes: vec![],
+            includes: vec![],
+            extra_options: vec![],
+            gpg_options: vec![],
+            retention: String::new(),
+            encrypt: false,
+        };
+        let args = profile.backup_args();
+        assert!(args.contains(&"--no-encryption".to_string()));
+
+        // And the TOML default for a legacy file without the field is
+        // *encrypted* (secure default):
+        let legacy: Profile =
+            toml::from_str("name = 'old'\ntarget = 'file:///x'\nsources = []").unwrap();
+        assert!(legacy.encrypt);
     }
 
     #[test]
@@ -163,6 +200,7 @@ mod tests {
             extra_options: vec![],
             gpg_options: vec![],
             retention: String::new(),
+            encrypt: true,
         };
         let args = profile.backup_args();
         assert_eq!(&args[0..3], &["--exclude", "**/tmp/**", "backup"]);

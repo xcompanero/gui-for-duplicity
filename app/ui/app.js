@@ -56,6 +56,7 @@ function fillForm(p) {
   f.excludes.value = (p.excludes || []).join("\n");
   f.retention.value = p.retention || "";
   f.extra_options.value = (p.extra_options || []).join(" ");
+  f.encrypt.checked = p.encrypt !== false;
   $("#profile-heading").textContent = `Profile: ${p.name || "(new)"}`;
   $("#save-msg").textContent = "";
   $("#btn-delete").disabled = !p.name;
@@ -70,6 +71,7 @@ function blankProfile() {
     extra_options: [],
     gpg_options: [],
     retention: "",
+    encrypt: true,
   };
   fillForm(currentProfile);
   showView("profile");
@@ -87,6 +89,7 @@ function readForm() {
     extra_options: f.extra_options.value.trim() ? f.extra_options.value.trim().split(/\s+/) : [],
     gpg_options: [],
     retention: f.retention.value.trim(),
+    encrypt: f.encrypt.checked,
   };
 }
 

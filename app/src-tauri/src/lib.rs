@@ -39,7 +39,17 @@ struct ProfileSummary {
 }
 
 fn err_msg(e: anyhow::Error) -> String {
-    format!("{e:#}")
+    let text = format!("{e:#}");
+    if text.contains("Bad session key") || text.contains("decryption failed") {
+        return format!(
+            "{text}\n\n\
+             This looks like a passphrase problem: the target contains data encrypted \
+             with a different (or missing) passphrase. Check the passphrase saved in \
+             KWallet for this target, and make sure the whole chain was created with \
+             the same encryption setting."
+        );
+    }
+    text
 }
 
 /// Build credentials for a target: an explicit passphrase wins; otherwise
@@ -158,6 +168,18 @@ fn start_backup(
     // 'static credentials (KWallet lookup / leaked owned string) move freely
     // into the job thread.
     let creds = resolve_credentials(&profile.target, passphrase.as_deref()).map_err(err_msg)?;
+
+    // Fail fast and clearly when encryption is intended but no passphrase
+    // can be found. Silently proceeding with a placeholder is what caused
+    // the "Bad session key" mixed-chain incident.
+    if profile.encrypt && creds.passphrase.is_none() {
+        return Err(format!(
+            "Profile '{}' has encryption enabled, but no passphrase is available.\n\
+             Save the GPG passphrase for this target in KWallet (profile editor), \
+             or untick 'Encrypt backups' if this target should be unencrypted.",
+            profile.name
+        ));
+    }
 
     std::thread::spawn(move || {
         let app_for_log = app.clone();

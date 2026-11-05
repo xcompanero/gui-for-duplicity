@@ -39,8 +39,12 @@
           </label>
         </div>
         <div class="row">
+          <label class="checkline">
+            <input type="checkbox" name="encrypt" id="f-encrypt" />
+            Encrypt backups with GPG (recommended)
+          </label>
           <label>GPG passphrase (for encrypted targets)
-            <input name="passphrase" type="password" placeholder="leave empty for unencrypted targets" />
+            <input name="passphrase" type="password" placeholder="type to save a new one to KWallet" />
           </label>
           <label>&nbsp;
             <div class="pass-actions">
