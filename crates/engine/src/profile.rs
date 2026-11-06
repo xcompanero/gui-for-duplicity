@@ -137,24 +137,28 @@ impl Profile {
     /// program name. Passphrases are NEVER placed here — they travel via
     /// the process environment, see [`crate::runner`].
     ///
-    /// Duplicity accepts exactly ONE source directory. With multiple
-    /// sources we use the standard recipe: back up from the filesystem
-    /// root with `--include` per source and a final `--exclude '**'`.
-    /// Pattern order matters (first match wins): user excludes, then user
-    /// includes (re-include after exclude), then the source includes.
+    /// Duplicity applies patterns FIRST-MATCH-WINS and accepts exactly ONE
+    /// source directory. Therefore:
+    /// - Includes come BEFORE Excludes, so an include acts as an exception
+    ///   to an exclude (e.g. include `/home/a/.ssh`, exclude `/home/a/.*`).
+    /// - Excludes must be ABSOLUTE paths/globs — relative patterns (`.cache`,
+    ///   `.*`) are rejected by duplicity ("cannot match any files").
+    /// - With multiple sources we scan from the filesystem root: one
+    ///   `--include` per source, then a final `--exclude '**'` catch-all
+    ///   (without it the root scan would traverse everything).
     pub fn backup_args(&self, force_full: bool) -> Vec<String> {
         let mut args = Vec::new();
 
         let multi = self.sources.len() > 1;
 
-        // User excludes first so a re-include (below) can override them.
-        for exc in &self.excludes {
-            args.push("--exclude".into());
-            args.push(exc.clone());
-        }
+        // Includes first: they are exceptions to excludes (first match wins).
         for inc in &self.includes {
             args.push("--include".into());
             args.push(inc.clone());
+        }
+        for exc in &self.excludes {
+            args.push("--exclude".into());
+            args.push(exc.clone());
         }
 
         if multi {
@@ -297,8 +301,8 @@ mod tests {
             original_root: None,
         };
         let args = profile.backup_args(false);
-        // Two sources → root+filters form: excludes, includes per source,
-        // catch-all, then backup / target.
+        // Two sources → root+filters form: includes, excludes, per-source
+        // includes, catch-all, then backup / target.
         assert_eq!(
             &args[0..9],
             &[
