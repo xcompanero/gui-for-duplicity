@@ -86,6 +86,7 @@ function blankProfile() {
     encrypt: true,
     read_only: false,
     original_root: null,
+    schedule: "",
   };
   fillForm(currentProfile);
   showView("profile");
@@ -106,6 +107,7 @@ function readForm() {
     encrypt: f.encrypt.checked,
     read_only: f.read_only.checked,
     original_root: f.original_root.value.trim() || null,
+    schedule: f.schedule.value.trim(),
   };
 }
 
@@ -122,11 +124,30 @@ $("#profile-form").addEventListener("submit", async (ev) => {
   const p = readForm();
   if (!p.name) return flashError("Name is required");
   try {
+    const previousSchedule = currentProfile?.schedule || "";
     const oldName = currentProfile?.name;
     await invoke("save_profile", { profile: p });
     if (oldName && oldName !== p.name) await invoke("delete_profile", { name: oldName });
     flash(`Saved to ${p.name}.toml`);
     currentProfile = p;
+    // Keep the systemd timer in lockstep with the schedule field: a save
+    // that changed the schedule applies it (this is what previously let a
+    // save silently wipe a configured schedule while its timer kept firing).
+    if (p.schedule !== previousSchedule) {
+      try {
+        const s = await invoke("set_schedule", {
+          name: p.name,
+          calendar: p.schedule || null,
+        });
+        if (s.enabled && s.next_run?.startsWith("WARNING")) {
+          $("#schedule-status").textContent = s.next_run;
+          $("#schedule-status").className = "msg error";
+        }
+      } catch (e) {
+        $("#schedule-status").textContent = String(e);
+        $("#schedule-status").className = "msg error";
+      }
+    }
     await refreshProfiles();
     renderProfileList();
   } catch (e) {
