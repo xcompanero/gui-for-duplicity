@@ -84,6 +84,20 @@ pub fn timer_path(profile_name: &str) -> Result<PathBuf> {
     Ok(user_units_dir()?.join(format!("{}.timer", unit_stem(profile_name))))
 }
 
+/// True when the expression pins a concrete year (e.g. starts `2026-`).
+/// Such a timer silently stops firing when that year ends — warn the user.
+/// True when the expression pins a concrete year (e.g. starts `2026-`).
+/// Such a timer silently stops firing when that year ends — warn the user.
+/// True when the expression pins a concrete year (e.g. contains a `2026-`
+/// date field). Such a timer silently stops firing when that year ends —
+/// warn the user.
+pub fn year_pinned(spec: &str) -> bool {
+    spec.trim().split_whitespace().any(|tok| {
+        let year = tok.split('-').next().unwrap_or("");
+        year.len() == 4 && year.chars().all(|c| c.is_ascii_digit())
+    })
+}
+
 /// Validate a systemd OnCalendar expression using systemd-analyze.
 /// Returns the parsed expansion on success; a helpful error on failure.
 pub fn validate_calendar(spec: &str) -> Result<String> {
@@ -246,5 +260,16 @@ mod tests {
         assert_eq!(unit_stem("Magrathea"), "gfd-magrathea");
         assert_eq!(unit_stem("Home Docs!!"), "gfd-home-docs");
         assert_eq!(unit_stem("!!!"), "gfd-profile");
+    }
+
+    #[test]
+    fn year_pinned_detection() {
+        assert!(year_pinned("2026-*-* 13:00:00"));
+        assert!(year_pinned("Mon..Fri 2026-*-* 09:00:00"));
+        assert!(!year_pinned("*-*-* 13:00:00"));
+        assert!(!year_pinned("daily"));
+        assert!(!year_pinned("*:0/15"));
+        // Time fields are not mistaken for years.
+        assert!(!year_pinned("*-*-* 13:00:00.5"));
     }
 }

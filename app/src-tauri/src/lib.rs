@@ -435,7 +435,8 @@ fn set_schedule(name: String, calendar: Option<String>) -> Result<engine::schedu
     if profile.read_only && calendar.is_some() {
         return Err(format!("'{}' is restore-only; scheduling is disabled", name));
     }
-    profile.schedule = calendar.unwrap_or_default().trim().to_string();
+    let cal = calendar.unwrap_or_default().trim().to_string();
+    profile.schedule = cal.clone();
     profile.save_default().map_err(err_msg)?;
 
     if profile.schedule.is_empty() {
@@ -445,7 +446,16 @@ fn set_schedule(name: String, calendar: Option<String>) -> Result<engine::schedu
         engine::schedule::write_units(&profile).map_err(err_msg)?;
         engine::schedule::enable(&name).map_err(err_msg)?;
     }
-    engine::schedule::status(&profile).map_err(err_msg)
+    let mut status = engine::schedule::status(&profile).map_err(err_msg)?;
+    // Surface the year-trap through the next-run field, keeping the response
+    // shape simple: the UI shows it as a warning line.
+    if engine::schedule::year_pinned(&cal) {
+        status.next_run = Some(format!(
+            "WARNING: this expression pins the year {} — the schedule will stop firing after that year. Prefer '*-*-* HH:MM:SS'.",
+            cal.trim().split_whitespace().next().unwrap_or("")
+        ));
+    }
+    Ok(status)
 }
 
 /// Dry-run retention: list what `remove-older-than` would delete, without

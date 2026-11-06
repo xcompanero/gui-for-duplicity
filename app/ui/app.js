@@ -468,6 +468,11 @@ $("#btn-set-schedule").onclick = async () => {
   try {
     await invoke("save_profile", { profile: { ...p, schedule: cal } });
     const s = await invoke("set_schedule", { name: p.name, calendar: cal });
+    if (s.next_run?.startsWith("WARNING")) {
+      $("#schedule-status").textContent = s.next_run;
+      $("#schedule-status").className = "msg error";
+      return;
+    }
     $("#schedule-status").textContent = s.enabled
       ? `Scheduled (${s.calendar}) — next run: ${s.next_run ?? "pending"}`
       : "Timer could not be enabled — see the application log.";
