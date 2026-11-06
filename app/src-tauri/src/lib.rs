@@ -493,7 +493,7 @@ fn home_dir() -> String {    std::env::var("HOME").unwrap_or_default()
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -516,6 +516,15 @@ pub fn run() {
             home_dir,
             open_path,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    // Ordered teardown on exit: without this, WebKit's renderer process can
+    // abort during shutdown (SIGABRT → an apport popup on every window
+    // close). See PROJECT_NOTES.md.
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            _app_handle.cleanup_before_exit();
+        }
+    });
 }
