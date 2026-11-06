@@ -136,28 +136,59 @@ impl Profile {
     /// full chain when `force_full`) — without the leading `duplicity`
     /// program name. Passphrases are NEVER placed here — they travel via
     /// the process environment, see [`crate::runner`].
+    ///
+    /// Duplicity accepts exactly ONE source directory. With multiple
+    /// sources we use the standard recipe: back up from the filesystem
+    /// root with `--include` per source and a final `--exclude '**'`.
+    /// Pattern order matters (first match wins): user excludes, then user
+    /// includes (re-include after exclude), then the source includes.
     pub fn backup_args(&self, force_full: bool) -> Vec<String> {
         let mut args = Vec::new();
-        for inc in &self.includes {
-            args.push("--include".into());
-            args.push(inc.clone());
-        }
+
+        let multi = self.sources.len() > 1;
+
+        // User excludes first so a re-include (below) can override them.
         for exc in &self.excludes {
             args.push("--exclude".into());
             args.push(exc.clone());
         }
+        for inc in &self.includes {
+            args.push("--include".into());
+            args.push(inc.clone());
+        }
+
+        if multi {
+            let sources: Vec<String> = self
+                .sources
+                .iter()
+                .map(|s| s.display().to_string())
+                .map(|s| s.trim_end_matches('/').to_string())
+                .collect();
+            for src in &sources {
+                args.push("--include".into());
+                args.push(src.clone());
+            }
+            // Catch-all AFTER the source includes; without it the root scan
+            // would traverse the entire filesystem.
+            args.push("--exclude".into());
+            args.push("**".into());
+        }
+
         if !self.encrypt {
             args.push("--no-encryption".into());
         }
         args.extend(self.gpg_options.iter().cloned());
         args.extend(self.extra_options.iter().cloned());
+
         // duplicity takes sources then target, sources last.
         if force_full {
             args.push("full".into());
         } else {
             args.push("backup".into());
         }
-        for src in &self.sources {
+        if multi {
+            args.push("/".into());
+        } else if let Some(src) = self.sources.first() {
             args.push(src.display().to_string());
         }
         args.push(self.target.clone());
@@ -266,8 +297,55 @@ mod tests {
             original_root: None,
         };
         let args = profile.backup_args(false);
-        assert_eq!(&args[0..3], &["--exclude", "**/tmp/**", "backup"]);
-        assert_eq!(&args[3..5], &["/a", "/b"]);
-        assert_eq!(args[5], "file:///x");
+        // Two sources → root+filters form: excludes, includes per source,
+        // catch-all, then backup / target.
+        assert_eq!(
+            &args[0..9],
+            &[
+                "--exclude", "**/tmp/**",
+                "--include", "/a",
+                "--include", "/b",
+                "--exclude", "**",
+                "backup",
+            ]
+        );
+        assert_eq!(&args[9..11], &["/", "file:///x"]);
+    }
+
+    #[test]
+    fn multi_source_uses_root_with_include_filters() {
+        let profile = Profile {
+            name: "t".into(),
+            sources: vec![
+                PathBuf::from("/home/aidan/Documents/"),
+                PathBuf::from("/home/aidan/Wallpapers/"),
+                PathBuf::from("/home/aidan/Southbank/"),
+            ],
+            target: "file:///x".into(),
+            excludes: vec!["**/.cache/**".into()],
+            includes: vec![],
+            extra_options: vec![],
+            gpg_options: vec![],
+            retention: String::new(),
+            schedule: String::new(),
+            encrypt: true,
+            last_backup_encrypt: None,
+            read_only: false,
+            original_root: None,
+        };
+        let args = profile.backup_args(false);
+        // Excludes, then one include per source (trailing slashes trimmed),
+        // then the catch-all, then the root as source, then the target.
+        assert_eq!(
+            &args[0..10],
+            &[
+                "--exclude", "**/.cache/**",
+                "--include", "/home/aidan/Documents",
+                "--include", "/home/aidan/Wallpapers",
+                "--include", "/home/aidan/Southbank",
+                "--exclude", "**",
+            ]
+        );
+        assert_eq!(&args[10..13], &["backup", "/", "file:///x"]);
     }
 }
