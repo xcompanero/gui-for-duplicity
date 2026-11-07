@@ -145,8 +145,8 @@ pub fn run_backup(
         }
     }
 
-    // Desktop notification: always for failures; for successes only when the
-    // run was long enough to be worth announcing.
+    // Desktop notifications: failures at critical urgency always; successes
+    // always too, but at normal urgency (quiet, auto-dismissing).
     let elapsed = started.elapsed();
     if !success {
         crate::notify::send(
@@ -154,11 +154,11 @@ pub fn run_backup(
             &format!("Profile '{}': see the log for details.", prepared.profile.name),
             true,
         );
-    } else if elapsed >= std::time::Duration::from_secs(60) {
+    } else {
         crate::notify::send(
             "Backup finished",
             &format!(
-                "Profile '{}' completed in {}.",
+                "Profile '{}' completed successfully in {}.",
                 prepared.profile.name,
                 format_elapsed(elapsed)
             ),
