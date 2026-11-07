@@ -382,23 +382,48 @@ async function openBrowserForChain(target, time) {
 let onListingStale = (ev) => {
   const { target, stale } = ev.payload;
   if (target !== browseTarget) return;
+  // Historical views are immutable — a late freshness event from an
+  // earlier "current" browse must not claim otherwise.
+  if (browseTime !== null) return;
   $("#stale-banner").hidden = !stale;
 };
 
 $("#btn-refresh-index").onclick = async () => {
   const target = browseTarget;
   if (!target) return;
+  const btn = $("#btn-refresh-index");
+
+  // Historical indexes are immutable — nothing to refresh; just dismiss.
+  if (browseTime !== null) {
+    $("#stale-banner").hidden = true;
+    return;
+  }
+
+  // Always acknowledge the click immediately, even though the re-parse
+  // can take minutes (or ~an hour on very large targets).
+  btn.disabled = true;
   $("#file-list").innerHTML =
-    '<div class="frow"><span>Refreshing the index — duplicity is re-parsing its signatures. This can take many minutes on large targets; the old index stays visible until done…</span></div>';
+    '<div class="frow"><span>Refreshing the index — duplicity is re-parsing its signatures. Minutes on small targets, up to about an hour on very large ones. The previous index stays until this finishes.</span></div>';
   try {
-    const res = await invoke("browse_files", { target, passphrase: null, forceRefresh: true });
+    const res = await invoke("browse_files", {
+      target,
+      time: null,
+      passphrase: null,
+      forceRefresh: true,
+    });
     browseListing = res.listing;
     $("#stale-banner").hidden = true;
-    $("#files-meta").textContent = `${target} — at: / (refreshed)`;
     renderFileBrowser();
   } catch (e) {
-    $("#file-count").textContent = String(e);
+    $("#file-list").innerHTML =
+      `<div class="frow"><span>Refresh failed: ${String(e)}</span></div>`;
+  } finally {
+    btn.disabled = false;
   }
+};
+
+$("#btn-dismiss-stale").onclick = () => {
+  $("#stale-banner").hidden = true;
 };
 
 // Debounced filter: re-render at most every 150 ms while typing, and render
