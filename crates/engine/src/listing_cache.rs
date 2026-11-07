@@ -146,6 +146,54 @@ fn write_entry(
     std::fs::write(&tmp, serde_json::to_string(&entry)?)
         .with_context(|| format!("writing listing cache {}", tmp.display()))?;
     std::fs::rename(&tmp, &path)?;
+    prune_cache(&dir)?;
+    Ok(())
+}
+
+/// Eviction guard: keep the listing cache bounded on small-disk machines.
+/// Oldest-modified files are evicted once either limit is exceeded. Limits
+/// are generous: ~30 listings or ~100 MB total (a magrathea-scale listing
+/// is ~7 MB).
+const MAX_CACHE_FILES: usize = 30;
+const MAX_CACHE_BYTES: u64 = 100 * 1024 * 1024;
+
+fn prune_cache(dir: &std::path::Path) -> Result<()> {
+    prune_cache_with_limits(dir, MAX_CACHE_FILES, MAX_CACHE_BYTES)
+}
+
+fn prune_cache_with_limits(
+    dir: &std::path::Path,
+    max_files: usize,
+    max_bytes: u64,
+) -> Result<()> {
+    let mut entries: Vec<(std::path::PathBuf, std::time::SystemTime, u64)> = Vec::new();
+    let mut total: u64 = 0;
+    for e in std::fs::read_dir(dir)?.flatten() {
+        let meta = e.metadata()?;
+        if !meta.is_file() || !e.path().extension().is_some_and(|x| x == "json") {
+            continue;
+        }
+        entries.push((e.path(), meta.modified()?, meta.len()));
+        total += meta.len();
+    }
+    if entries.len() <= max_files && total <= max_bytes {
+        return Ok(());
+    }
+    // Oldest first.
+    entries.sort_by_key(|(_, mtime, _)| *mtime);
+    let mut excess_files = entries.len().saturating_sub(max_files);
+    for (path, _, size) in entries {
+        if excess_files > 0 {
+            let _ = std::fs::remove_file(&path);
+            total = total.saturating_sub(size);
+            excess_files -= 1;
+        } else if total > max_bytes {
+            let _ = std::fs::remove_file(&path);
+            total = total.saturating_sub(size);
+        } else {
+            break;
+        }
+    }
     Ok(())
 }
 
@@ -182,5 +230,31 @@ mod tests {
         let back: CachedListing = serde_json::from_str(&text).unwrap();
         assert_eq!(back.listing.entries.len(), 1);
         assert_eq!(back.listing.entries[0].path, listing.entries[0].path);
+    }
+
+    #[test]
+    fn prune_evicts_oldest_beyond_file_cap() {
+        let dir = std::env::temp_dir().join(format!("gfd-prune-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Five files with ascending mtimes (0 = oldest).
+        for i in 0..5 {
+            let p = dir.join(format!("{i}.json"));
+            let f = std::fs::File::create(&p).unwrap();
+            let old = std::time::SystemTime::now()
+                - std::time::Duration::from_secs(1000 - i as u64);
+            f.set_times(std::fs::FileTimes::new().set_modified(old)).unwrap();
+            drop(f);
+            std::fs::write(&p, "[]").unwrap();
+        }
+        prune_cache_with_limits(&dir, 3, u64::MAX).unwrap();
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        left.sort();
+        // The two oldest (0, 1) must be evicted; 2, 3, 4 remain.
+        assert_eq!(left, vec!["2.json", "3.json", "4.json"]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

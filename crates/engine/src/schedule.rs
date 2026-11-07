@@ -272,4 +272,9 @@ mod tests {
         // Time fields are not mistaken for years.
         assert!(!year_pinned("*-*-* 13:00:00.5"));
     }
+
+    #[test]
+    fn unit_stems_trim_trailing_dashes() {
+        assert_eq!(unit_stem("test-"), "gfd-test");
+    }
 }
