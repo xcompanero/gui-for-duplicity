@@ -7,7 +7,7 @@ const { listen } = window.__TAURI__.event;
 
 // Visible build marker: if this text appears in the sidebar, the CURRENT
 // app.js is provably running (guards against stale embedded/cached assets).
-const BUILD_TAG = "build 3 — 2026-11-07 (stale-banner fixes)";
+const BUILD_TAG = "build 4 — 2026-11-07 (hidden-attribute fix)";
 document.addEventListener("DOMContentLoaded", () => {
   const el = document.getElementById("build-tag");
   if (el) el.textContent = `UI ${BUILD_TAG} — JS running`;

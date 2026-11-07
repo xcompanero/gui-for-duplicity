@@ -15,6 +15,12 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute must ALWAYS win: author display rules (e.g.
+   .banner/.restore-bar's flex) would otherwise override the UA's
+   [hidden] { display: none } — which once left banners permanently visible
+   no matter what the JavaScript did. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   display: flex;
