@@ -8,16 +8,23 @@
 use std::process::{Command, Stdio};
 
 /// Send a desktop notification. `urgent` sets the urgency hint.
-/// `spawn()` fails silently if notify-send is missing — that's fine.
+/// A missing or failing `notify-send` is logged to stderr (visible in the
+/// journal for scheduled runs) but never propagates — a backup must never
+/// fail *because* it tried to speak.
 pub fn send(title: &str, body: &str, urgent: bool) {
-    let _ = Command::new("notify-send")
+    let urgency = if urgent { "critical" } else { "normal" };
+    match Command::new("notify-send")
         .arg(title)
         .arg(body)
         .args(["--app-name=GUI For Duplicity"])
-        .arg(if urgent { "--urgency=critical" } else { "--urgency=normal" })
+        .arg(format!("--urgency={urgency}"))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .spawn();
+        .spawn()
+    {
+        Ok(_) => eprintln!("[notify] sent ({urgency}): {title}"),
+        Err(e) => eprintln!("[notify] FAILED to launch notify-send: {e}"),
+    }
 }
 
 #[cfg(test)]
