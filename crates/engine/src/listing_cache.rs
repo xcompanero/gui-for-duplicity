@@ -239,12 +239,11 @@ mod tests {
         // Five files with ascending mtimes (0 = oldest).
         for i in 0..5 {
             let p = dir.join(format!("{i}.json"));
-            let f = std::fs::File::create(&p).unwrap();
+            std::fs::write(&p, "[]").unwrap();
+            let f = std::fs::OpenOptions::new().write(true).open(&p).unwrap();
             let old = std::time::SystemTime::now()
                 - std::time::Duration::from_secs(1000 - i as u64);
             f.set_times(std::fs::FileTimes::new().set_modified(old)).unwrap();
-            drop(f);
-            std::fs::write(&p, "[]").unwrap();
         }
         prune_cache_with_limits(&dir, 3, u64::MAX).unwrap();
         let mut left: Vec<String> = std::fs::read_dir(&dir)
