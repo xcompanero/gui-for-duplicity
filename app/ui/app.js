@@ -95,6 +95,7 @@ function blankProfile() {
     read_only: false,
     original_root: null,
     schedule: "",
+    last_backup_encrypt: null,
   };
   fillForm(currentProfile);
   showView("profile");
@@ -116,6 +117,9 @@ function readForm() {
     read_only: f.read_only.checked,
     original_root: f.original_root.value.trim() || null,
     schedule: f.schedule.value.trim(),
+    // Internal state not editable in the form must round-trip, or saving
+    // silently erases it (the schedule had the same bug once).
+    last_backup_encrypt: currentProfile?.last_backup_encrypt ?? null,
   };
 }
 
