@@ -7,7 +7,7 @@ const { listen } = window.__TAURI__.event;
 
 // Visible build marker: if this text appears in the sidebar, the CURRENT
 // app.js is provably running (guards against stale embedded/cached assets).
-const BUILD_TAG = "build 4 — 2026-11-07 (hidden-attribute fix)";
+const BUILD_TAG = "build 5 — 2026-11-08 (log batching + heartbeat)";
 document.addEventListener("DOMContentLoaded", () => {
   const el = document.getElementById("build-tag");
   if (el) el.textContent = `UI ${BUILD_TAG} — JS running`;
@@ -451,6 +451,19 @@ $("#file-filter").addEventListener("input", () => {
 // ---------- restore from the browser ----------
 let restoreJobKind = null; // "backup" | "restore"
 let lastRestoreDest = null;
+let pendingLogLines = [];  // incoming job-log lines, flushed every 300 ms
+let logLines = [];         // lines currently shown in the pane (capped)
+let jobHeartbeat = null;   // ticking elapsed-time so silence ≠ hang
+
+function startJobHeartbeat() {
+  clearInterval(jobHeartbeat);
+  const t0 = Date.now();
+  jobHeartbeat = setInterval(() => {
+    const s = Math.floor((Date.now() - t0) / 1000);
+    const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, "0");
+    $("#log-status").textContent = `Running… ${mm}:${ss}`;
+  }, 5000);
+}
 
 // Per-row ⤓ buttons (event delegation: rows come and go with filtering).
 $("#file-list").addEventListener("click", async (ev) => {
@@ -597,7 +610,9 @@ $("#btn-verify").onclick = async () => {
       passphrase: null,
     });
     $("#log").textContent = "";
-    $("#log-job").textContent = `verify job #${activeJobId} — ${p.target}`;
+    logLines = [];
+    pendingLogLines = [];
+    startJobHeartbeat();
     $("#log-status").textContent = "Verifying…";
     showView("log");
   } catch (e) {
@@ -654,7 +669,9 @@ $("#btn-do-restore").onclick = async () => {
       passphrase: null,
     });
     $("#log").textContent = "";
-    $("#log-job").textContent = `restore job #${activeJobId} — ${path}`;
+    logLines = [];
+    pendingLogLines = [];
+    startJobHeartbeat();
     $("#log-status").textContent = "Restoring…";
     showView("log");
   } catch (e) {
@@ -677,7 +694,9 @@ async function runBackup(name, forceNewChain) {
       forceNewChain,
     });
     $("#log").textContent = "";
-    $("#log-job").textContent = `job #${activeJobId} — profile "${name}"${forceNewChain ? " (new chain)" : ""}`;
+    logLines = [];
+    pendingLogLines = [];
+    startJobHeartbeat();
     $("#log-status").textContent = "Running…";
     showView("log");
   } catch (e) {
@@ -698,14 +717,28 @@ async function runBackup(name, forceNewChain) {
   await listen("job-log", (ev) => {
     const { job_id: id, line } = ev.payload;
     if (id !== activeJobId) return;
-    const log = $("#log");
-    log.textContent += line + "\n";
-    log.scrollTop = log.scrollHeight;
+    pendingLogLines.push(line);
   });
+
+  // Batch log appends: appending each line to a growing textContent string is
+  // O(n²) and once wedged a 2 GB text node (a long verify's output) can
+  // freeze the webview entirely (seen in the field, 2026-11-07).
+  setInterval(() => {
+    if (pendingLogLines.length === 0) return;
+    const lines = pendingLogLines.splice(0);
+    logLines.push(...lines);
+    // Cap the pane: keep the most recent lines only (full text stays in
+    // memory for scrolling within the cap).
+    if (logLines.length > 3000) logLines.splice(0, logLines.length - 3000);
+    const log = $("#log");
+    log.textContent = logLines.join("\n");
+    log.scrollTop = log.scrollHeight;
+  }, 300);
 
   await listen("job-done", (ev) => {
     const { job_id: id, ok, message } = ev.payload;
     if (id !== activeJobId) return;
+    clearInterval(jobHeartbeat);
     const el = $("#log-status");
     el.textContent = message || (ok ? "Job finished successfully." : "Job FAILED — see log above.");
     el.className = "msg" + (ok ? "" : " error");
