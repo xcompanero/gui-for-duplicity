@@ -410,6 +410,11 @@ fn start_verify(
                 // rather than a wall of lines: mtime-only churn is benign,
                 // new/missing/content differences deserve attention.
                 let (mut mtime_only, mut new_files, mut content_other) = (0u64, 0u64, 0u64);
+                // Aggregate by top-level directory — the map of WHERE changes
+                // happened, so the alphabetically-first examples don't hide
+                // the big picture.
+                use std::collections::BTreeMap;
+                let mut by_area: BTreeMap<String, u64> = BTreeMap::new();
                 for line in &outcome.report.difference_lines {
                     if line.contains("has mtime") {
                         mtime_only += 1;
@@ -418,6 +423,31 @@ fn start_verify(
                     } else {
                         content_other += 1;
                     }
+                    let path = if let Some(rest) = line.strip_prefix("New file ") {
+                        rest.trim()
+                    } else if let Some(rest) = line.strip_prefix("File ") {
+                        let end = rest
+                            .find(" has mtime")
+                            .or_else(|| rest.find(" is missing"))
+                            .unwrap_or(rest.len());
+                        rest[..end].trim()
+                    } else {
+                        "(other)"
+                    };
+                    let top = path.split('/').next().unwrap_or("(root)").to_string();
+                    *by_area.entry(top).or_insert(0) += 1;
+                }
+                let mut areas: Vec<(&String, &u64)> =
+                    by_area.iter().collect::<Vec<_>>();
+                areas.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+                for (area, count) in areas.iter().take(12) {
+                    let _ = app.emit(
+                        "job-log",
+                        JobLogLine {
+                            job_id,
+                            line: format!("  CHANGES BY AREA: {area} — {count}"),
+                        },
+                    );
                 }
                 for line in outcome.report.difference_lines.iter().take(40) {
                     let _ = app.emit(
