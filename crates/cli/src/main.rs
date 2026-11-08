@@ -387,6 +387,7 @@ fn cmd_verify(args: Vec<String>) -> Result<()> {
         local,
         compare_data,
         o.time.as_deref(),
+        &o.dup_args,
         &o.engine_credentials(),
         o.stderr_listener(),
     )?;

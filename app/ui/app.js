@@ -604,6 +604,7 @@ $("#btn-verify").onclick = async () => {
   restoreJobKind = "verify";
   try {
     activeJobId = await invoke("start_verify", {
+      name: p.name,
       target: p.target,
       localPath: p.sources[0],
       time: null,

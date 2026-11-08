@@ -360,6 +360,7 @@ fn open_path(path: String) -> Result<(), String> {
 fn start_verify(
     app: AppHandle,
     state: State<'_, AppState>,
+    name: String,
     target: String,
     local_path: String,
     time: Option<String>,
@@ -367,6 +368,16 @@ fn start_verify(
 ) -> Result<u64, String> {
     let job_id = state.next_job_id.fetch_add(1, Ordering::SeqCst);
     let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
+
+    // The verify must check exactly the file set the backup covers.
+    let selection = Profile::load_default(&name)
+        .map(|p| p.selection_args())
+        .unwrap_or_default();
+
+    eprintln!(
+        "[job {job_id}] verify started: profile={name} target={target} local={local_path} selection_rules={}",
+        selection.len()
+    );
 
     std::thread::spawn(move || {
         eprintln!("[job {job_id}] verify started: target={target} local={local_path}");
@@ -383,6 +394,7 @@ fn start_verify(
             &local_path,
             true,
             time.as_deref(),
+            &selection,
             &creds,
             Some(&listener),
         ) {
@@ -394,12 +406,29 @@ fn start_verify(
                     outcome.report.files_compared,
                     outcome.report.differences
                 );
+                // Classify differences so the verdict reads as a diagnosis
+                // rather than a wall of lines: mtime-only churn is benign,
+                // new/missing/content differences deserve attention.
+                let (mut mtime_only, mut new_files, mut content_other) = (0u64, 0u64, 0u64);
                 for line in &outcome.report.difference_lines {
+                    if line.contains("has mtime") {
+                        mtime_only += 1;
+                    } else if line.contains("New file") {
+                        new_files += 1;
+                    } else {
+                        content_other += 1;
+                    }
+                }
+                for line in outcome.report.difference_lines.iter().take(40) {
                     let _ = app.emit(
                         "job-log",
                         JobLogLine { job_id, line: format!("  DIFFERENCE: {line}") },
                     );
                 }
+                let breakdown = format!(
+                    " ({} mtime-only, {} new-file, {} content/other)",
+                    mtime_only, new_files, content_other
+                );
                 let verdict = match outcome.report.is_clean() {
                     Some(true) => format!(
                         "VERIFIED — {} file(s) compared, 0 differences (took {})",
@@ -407,9 +436,13 @@ fn start_verify(
                         format_elapsed(started.elapsed())
                     ),
                     Some(false) => format!(
-                        "DIFFERENCES FOUND — {} file(s) compared, {} difference(s); see the list above",
+                        "DIFFERENCES FOUND — {} file(s) compared, {} difference(s){}; \
+                         the first {} are listed above. Expect differences for files \
+                         changed since the backup ran.",
                         outcome.report.files_compared.unwrap_or(0),
-                        outcome.report.differences.unwrap_or(0)
+                        outcome.report.differences.unwrap_or(0),
+                        breakdown,
+                        outcome.report.difference_lines.len().min(40)
                     ),
                     None => "Verify did not complete — see log above".to_string(),
                 };

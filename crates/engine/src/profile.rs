@@ -132,6 +132,31 @@ impl Profile {
         Ok(())
     }
 
+    /// Build the file-selection argument list shared by `backup` and
+    /// `verify`: user includes (exceptions), user excludes, then — when
+    /// scanning from the filesystem root — one `--include` per source and
+    /// the `--exclude '**'` catch-all.
+    pub fn selection_args(&self) -> Vec<String> {
+        let mut args = Vec::new();
+        for inc in &self.includes {
+            args.push("--include".into());
+            args.push(inc.clone());
+        }
+        for exc in &self.excludes {
+            args.push("--exclude".into());
+            args.push(exc.clone());
+        }
+        if self.sources.len() > 1 {
+            for src in &self.sources {
+                args.push("--include".into());
+                args.push(src.display().to_string().trim_end_matches('/').to_string());
+            }
+            args.push("--exclude".into());
+            args.push("**".into());
+        }
+        args
+    }
+
     /// Build the argument list for a `duplicity backup` (or a forced new
     /// full chain when `force_full`) — without the leading `duplicity`
     /// program name. Passphrases are NEVER placed here — they travel via
@@ -147,36 +172,7 @@ impl Profile {
     ///   `--include` per source, then a final `--exclude '**'` catch-all
     ///   (without it the root scan would traverse everything).
     pub fn backup_args(&self, force_full: bool) -> Vec<String> {
-        let mut args = Vec::new();
-
-        let multi = self.sources.len() > 1;
-
-        // Includes first: they are exceptions to excludes (first match wins).
-        for inc in &self.includes {
-            args.push("--include".into());
-            args.push(inc.clone());
-        }
-        for exc in &self.excludes {
-            args.push("--exclude".into());
-            args.push(exc.clone());
-        }
-
-        if multi {
-            let sources: Vec<String> = self
-                .sources
-                .iter()
-                .map(|s| s.display().to_string())
-                .map(|s| s.trim_end_matches('/').to_string())
-                .collect();
-            for src in &sources {
-                args.push("--include".into());
-                args.push(src.clone());
-            }
-            // Catch-all AFTER the source includes; without it the root scan
-            // would traverse the entire filesystem.
-            args.push("--exclude".into());
-            args.push("**".into());
-        }
+        let mut args = self.selection_args();
 
         if !self.encrypt {
             args.push("--no-encryption".into());
@@ -190,7 +186,7 @@ impl Profile {
         } else {
             args.push("backup".into());
         }
-        if multi {
+        if self.sources.len() > 1 {
             args.push("/".into());
         } else if let Some(src) = self.sources.first() {
             args.push(src.display().to_string());

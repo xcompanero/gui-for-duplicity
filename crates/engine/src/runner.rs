@@ -119,15 +119,20 @@ pub struct VerifyOutcome {
 }
 
 /// Run `duplicity verify [--compare-data] [--time T] <target> <local_path>`.
+/// `selection` carries the profile's include/exclude rules so the verify
+/// checks exactly the file set the backup covers — without them, excluded
+/// files flood the difference report.
 pub fn verify(
     target: &str,
     local_path: &str,
     compare_data: bool,
     time: Option<&str>,
+    selection: &[String],
     credentials: &Credentials<'_>,
     on_stderr_line: Option<&dyn Fn(&str)>,
 ) -> Result<VerifyOutcome> {
-    let mut args: Vec<String> = vec!["verify".into()];
+    let mut args: Vec<String> = selection.to_vec();
+    args.push("verify".into());
     if compare_data {
         args.push("--compare-data".into());
     }
