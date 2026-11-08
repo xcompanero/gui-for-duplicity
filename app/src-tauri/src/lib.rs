@@ -332,6 +332,7 @@ fn start_restore(
                 );
             }
             Err(e) => {
+                eprintln!("[job {job_id}] restore runner ERRORED: {e:#}");
                 let _ = app.emit(
                     "job-done",
                     JobDone { job_id, ok: false, exit_code: None, message: Some(err_msg(e)) },
@@ -368,6 +369,7 @@ fn start_verify(
     let creds = resolve_credentials(&target, passphrase.as_deref()).map_err(err_msg)?;
 
     std::thread::spawn(move || {
+        eprintln!("[job {job_id}] verify started: target={target} local={local_path}");
         let started = std::time::Instant::now();
         let app_log = app.clone();
         let listener = move |line: &str| {
@@ -385,6 +387,13 @@ fn start_verify(
             Some(&listener),
         ) {
             Ok(outcome) => {
+                eprintln!(
+                    "[job {job_id}] verify runner returned: success={} clean={:?} compared={:?} diffs={:?}",
+                    outcome.success,
+                    outcome.report.is_clean(),
+                    outcome.report.files_compared,
+                    outcome.report.differences
+                );
                 for line in &outcome.report.difference_lines {
                     let _ = app.emit(
                         "job-log",
