@@ -30,6 +30,7 @@ fn main() -> Result<()> {
         "verify" => cmd_verify(rest),
         "restore" => cmd_restore(rest),
         "backup" => cmd_backup(rest),
+        "cleanup" => cmd_cleanup(rest),
         "schedule" => cmd_schedule(rest),
         "delete" => cmd_delete(rest),
         "seed-cache" => cmd_seed_cache(rest),
@@ -198,6 +199,50 @@ fn cmd_schedule(args: Vec<String>) -> Result<()> {
         if s.enabled { "enabled" } else { "FAILED to enable" },
         s.next_run.as_deref().unwrap_or("(none)")
     );
+    Ok(())
+}
+
+/// Remove incomplete/orphaned sets from a profile's target.
+///   engine-cli cleanup <profile> [--force]        (dry run without --force)
+fn cmd_cleanup(args: Vec<String>) -> Result<()> {
+    let mut name: Option<String> = None;
+    let mut force = false;
+    for a in args {
+        match a.as_str() {
+            "--force" => force = true,
+            _ => {
+                if name.is_some() {
+                    bail!("unexpected extra argument: {a}");
+                }
+                name = Some(a);
+            }
+        }
+    }
+    let name = name.context("usage: engine-cli cleanup <profile> [--force]")?;
+    let profile = engine::profile::Profile::load_default(&name)?;
+
+    let creds = if profile.encrypt {
+        let stored = engine::secrets::get_passphrase(&profile.target)
+            .with_context(|| "looking up the passphrase in the Secret Service (KWallet)")?;
+        match stored {
+            Some(p) => engine::runner::Credentials {
+                passphrase: Some(&*Box::leak(p.into_boxed_str())),
+                ..Default::default()
+            },
+            None => bail!(
+                "Profile '{}' is encrypted but no passphrase is stored for its target.",
+                profile.name
+            ),
+        }
+    } else {
+        engine::runner::Credentials::new()
+    };
+
+    let run = engine::runner::cleanup(&profile.target, force, &creds, None)?;
+    println!("{}", run.stdout.trim());
+    if !run.success() {
+        bail!("cleanup {} (exit {})", if force { "failed" } else { "dry-run found work — re-run with --force" }, run.exit_status.code().unwrap_or(-1));
+    }
     Ok(())
 }
 

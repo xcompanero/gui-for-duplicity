@@ -327,6 +327,27 @@ pub fn run_duplicity(
         "PASSPHRASE",
         credentials.passphrase.unwrap_or("duplicity-gui-placeholder"),
     );
+    // duplicity's temp workspace defaults into /tmp — which on modern
+    // Ubuntu is tmpfs (wiped at every shutdown/reboot, killing mid-run
+    // backups with FileNotFoundError ENOENT). Give it a persistent,
+    // user-owned workspace instead: never tmpfiles-cleaned, survives
+    // reboots and logouts.
+    let tmp_root = {
+        let base = std::env::var_os("XDG_CACHE_HOME")
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.is_absolute())
+            .unwrap_or_else(|| {
+                let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
+                home.join(".cache")
+            });
+        base.join("gui-for-duplicity").join("tmp")
+    };
+    if let Err(e) = std::fs::create_dir_all(&tmp_root) {
+        eprintln!("[runner] warning: could not create persistent tempdir {tmp_root:?}: {e} — falling back to /tmp");
+    } else {
+        cmd.env("TMPDIR", &tmp_root);
+    }
+
     if let Some(pass) = credentials.backend_password {
         cmd.env("BACKEND_PASSWORD", pass);
     }
