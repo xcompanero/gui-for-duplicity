@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Engine tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Engine unit tests
+        run: cargo test -p engine
+
+  build-deb:
+    name: Build Debian package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
+          librsvg2-dev libssl-dev libdbus-1-dev
+      - name: Build (release)
+        run: cargo build --release
+      - name: Build .deb
+        run: ./scripts/build-deb.sh
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-for-duplicity-deb
+          path: dist/*.deb

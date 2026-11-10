@@ -7,7 +7,7 @@ const { listen } = window.__TAURI__.event;
 
 // Visible build marker: if this text appears in the sidebar, the CURRENT
 // app.js is provably running (guards against stale embedded/cached assets).
-const BUILD_TAG = "build 5 — 2026-11-08 (log batching + heartbeat)";
+const BUILD_TAG = "build 6 — 2026-11-08 (boot selection fix)";
 document.addEventListener("DOMContentLoaded", () => {
   const el = document.getElementById("build-tag");
   if (el) el.textContent = `UI ${BUILD_TAG} — JS running`;
@@ -762,5 +762,5 @@ async function runBackup(name, forceNewChain) {
   showView("profile");
   blankProfile();
   await refreshProfiles();
-  if (profiles.length > 0) await openProfile(profiles[0]);
+  if (profiles.length > 0) await openProfile(profiles[0].name);
 })();
