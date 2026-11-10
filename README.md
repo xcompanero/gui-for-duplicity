@@ -120,9 +120,12 @@ service, which it reads automatically.
   minutes on small targets, potentially an hour on large remote ones. Each
   date is cached permanently afterwards.
 - The Tauri window is the only UI; there is no tray icon yet.
-- Developed and tested against duplicity 3.0.x on one Kubuntu system and one
-  Synology NAS; other platforms and backends should work through the same
-  engine but are untested.
+- Developed and tested against duplicity 3.0.x on Kubuntu/KDE Plasma, with
+  backup targets exercised on a Synology NAS (sftp and ftp) and a plain
+  Ubuntu server (sftp). The GUI uses desktop-agnostic freedesktop
+  interfaces (Secret Service, systemd user units, freedesktop
+  notifications), but desktop environments beyond KDE Plasma are untested —
+  testers for GNOME, Cinnamon, MATE, and other distros are welcome.
 
 ## License
 
