@@ -2,3 +2,5 @@
 Cargo.lock~
 *.swp
 dist/
+PROJECT_NOTES.md
+PLAN.md
