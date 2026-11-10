@@ -1,3 +1,5 @@
+[![CI](https://github.com/xcompanero/gui-for-duplicity/actions/workflows/ci.yml/badge.svg)](https://github.com/xcompanero/gui-for-duplicity/actions/workflows/ci.yml)
+
 # GUI For Duplicity
 
 A desktop GUI front end for the [Duplicity](https://duplicity.gitlab.io/)
