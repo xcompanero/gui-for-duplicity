@@ -14,6 +14,19 @@ through its command line, spawned and monitored by a Rust engine.
 ![status: early](https://img.shields.io/badge/status-early_development-orange)
 ![license](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 
+## Screenshots
+
+| Profile editor | Backup status |
+|---|---|
+| ![Profile editor](screenshots/01-profiles.png) | ![Backup status](screenshots/02-status.png) |
+| **Snapshot browser** | **Verification verdict** |
+| ![Snapshot browser](screenshots/03-browser.png) | ![Verify verdict](screenshots/04-verify.png) |
+
+Desktop notifications report every completed backup — and raise critical
+alerts for failures:
+
+![Notification](screenshots/05-notification.png)
+
 ## Features
 
 - **Profiles** — declarative TOML backup jobs: sources, target URL (any
