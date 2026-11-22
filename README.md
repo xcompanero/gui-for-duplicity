@@ -139,8 +139,9 @@ service, which it reads automatically.
   backup targets exercised on a Synology NAS (sftp and ftp) and a plain
   Ubuntu server (sftp). The GUI uses desktop-agnostic freedesktop
   interfaces (Secret Service, systemd user units, freedesktop
-  notifications), but desktop environments beyond KDE Plasma are untested —
-  testers for GNOME, Cinnamon, MATE, and other distros are welcome.
+  notifications). **In field use (since 2026-11) on Kubuntu 24.04 and
+  Ubuntu/GNOME, including user-run recovery fire-drills** — testers for
+  other distros and desktops are still welcome.
 
 ## License
 
