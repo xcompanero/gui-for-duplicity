@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let rest: Vec<String> = args.collect();
     match command.as_str() {
         "version" => {
-            println!("engine-cli 0.1.0 (Phase 0 harness)");
+            println!(concat!("engine-cli ", env!("CARGO_PKG_VERSION")));
             println!(
                 "duplicity: {}",
                 engine::runner::duplicity_path()
