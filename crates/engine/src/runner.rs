@@ -360,37 +360,50 @@ pub fn run_duplicity(
         .with_context(|| format!("spawning {}", duplicity.display()))?;
 
     // Read stdout/stderr concurrently to avoid pipe deadlock on large output.
-    // stderr is streamed line-by-line through a channel so a listener (the
-    // Phase 1 live log pane; the CLI's --live flag) sees messages in real time.
+    // BOTH streams are streamed line-by-line through one channel so a
+    // listener (the live log pane; the CLI's echo) sees everything: at high
+    // verbosity duplicity's file-level log goes to STDOUT, while errors and
+    // tracebacks go to stderr — streaming only stderr made verbose runs look
+    // silent (discovered 2026-11-08).
     use std::io::{BufRead, Read};
-    let mut stdout_handle = child.stdout.take().expect("stdout piped");
+    let stdout_handle = child.stdout.take().expect("stdout piped");
     let stderr_handle = child.stderr.take().expect("stderr piped");
-    let stdout = std::thread::spawn(move || {
-        let mut buf = String::new();
-        let _ = stdout_handle.read_to_string(&mut buf);
-        buf
-    });
-    let (tx, rx) = std::sync::mpsc::channel::<String>();
-    let stderr_reader = std::thread::spawn(move || {
-        let reader = std::io::BufReader::new(stderr_handle);
+    let (tx, rx) = std::sync::mpsc::channel::<(bool, String)>(); // (is_stdout, line)
+    let tx_stderr = tx.clone();
+    let stdout_reader = std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stdout_handle);
         for line in reader.lines().map_while(Result::ok) {
-            if tx.send(line).is_err() {
+            if tx.send((true, line)).is_err() {
                 break;
             }
         }
     });
+    let stderr_reader = std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stderr_handle);
+        for line in reader.lines().map_while(Result::ok) {
+            if tx_stderr.send((false, line)).is_err() {
+                break;
+            }
+        }
+    });
+    let mut stdout_buf = String::new();
     let mut stderr_buf = String::new();
-    while let Ok(line) = rx.recv() {
+    while let Ok((is_stdout, line)) = rx.recv() {
         if let Some(cb) = on_stderr_line {
             cb(&line);
         }
-        stderr_buf.push_str(&line);
-        stderr_buf.push('\n');
+        if is_stdout {
+            stdout_buf.push_str(&line);
+            stdout_buf.push('\n');
+        } else {
+            stderr_buf.push_str(&line);
+            stderr_buf.push('\n');
+        }
     }
+    let _ = stdout_reader.join();
     let _ = stderr_reader.join();
-    let stdout = stdout.join().unwrap_or_default();
 
     let exit_status = child.wait()?;
 
-    Ok(DuplicityRun { exit_status, stdout, stderr: stderr_buf })
+    Ok(DuplicityRun { exit_status, stdout: stdout_buf, stderr: stderr_buf })
 }
